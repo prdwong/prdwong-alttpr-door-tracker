@@ -42,7 +42,8 @@ function countChests(dungeon) {
 	});
 	for (var i = 0; i < ROOM_NUM; i++)
 		for (var j = 0; j < EXIT_NUM; j++) {
-			if (map[dungeon].rooms[i].exits[j].icon === "chest" || map[dungeon].rooms[i].exits[j].icon === "bigchest")
+			if ((map[dungeon].rooms[i].exits[j].icon === "chest" || map[dungeon].rooms[i].exits[j].icon === "bigchest")
+				&& map[dungeon].rooms[i].exits[j].state === 0)
 				chestCount++;
 		}
 	return chestCount;
