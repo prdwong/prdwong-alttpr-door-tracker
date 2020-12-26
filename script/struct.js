@@ -15,6 +15,8 @@ var curDungeon = 0; //Currently displayed dungeon
 var map = new Array; //array of dungeon information
 
 function resetAll() {
+	options.images = new Array();
+	
 	//curDungeon = 0;
 	for (i = 0; i < 13; i++) {
 		map[i] = {};
