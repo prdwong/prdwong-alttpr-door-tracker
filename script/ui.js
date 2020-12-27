@@ -166,6 +166,15 @@ function refreshVisible(cellName = "") {
 	
 	document.getElementById("chests").innerHTML = countChests(curDungeon);
 	updateDungeonCounterText(curDungeon);
+	
+	//Redo all dungeon images
+	for (var i = 0; i < 13; i++) {
+		var dungStyle = document.getElementById("dung"+i).style;
+		if (map[i].finished === true)
+			dungStyle.backgroundImage = "url(images/xmark.png), url(images/dung"+i+".png)";
+		else
+			dungStyle.backgroundImage = "url(images/dung"+i+".png)";
+	}
 
 	//Special handling for whatever we're hovering over
 	var mouseRoom = parseInt(cellName.substring(4, 6));
@@ -356,7 +365,12 @@ function trackerClick(event) {
 	//Clicks on the left-side dungeons always switch the map
 	if (cellName.substring(0, 4) === "dung") {
 		//Left or right click
-		switchMap(parseInt(cellName.substring(4)), event);
+		if (event.button === 0)
+			switchMap(parseInt(cellName.substring(4)), event);
+		else if (event.button === 2) {
+			map[parseInt(cellName.substring(4))].finished = !map[parseInt(cellName.substring(4))].finished;
+			refreshVisible();
+		}
 		return;
 	}
 	

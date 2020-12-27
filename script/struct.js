@@ -39,6 +39,7 @@ function resetAll() {
 		map[i].images = new Array; //array of free images (img:like "hookshot", x:page coord, y:page coord)
 		map[i].counter = "?"; //scroll wheel counter
 		map[i].counter2 = 0; //mousedrag counter
+		map[i].finished = false; //x mark on dungeon
 	}
 }
 
