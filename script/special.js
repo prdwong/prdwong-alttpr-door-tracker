@@ -1415,7 +1415,7 @@ room.imgs.push({img:"chest", x:8, y:8});
 room.imgs.push({img:"chest", x:24, y:8});
 room.imgs.push({img:"chest", x:8, y:24});
 room.imgs.push({img:"chest", x:24, y:24});
-room.imgs.push({img:"chest", x:32, y:40});
+room.imgs.push({img:"potkey", x:32, y:40});
 group.rooms.push(room);
 //right teleport
 var room = {img:"xgteasttele"};

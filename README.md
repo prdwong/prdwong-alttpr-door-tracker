@@ -13,6 +13,7 @@ User manual: https://docs.google.com/document/d/1qbxpZ1OLI4GwNCYdrcbW6RCxhT_GfVe
 How to install:  
 Unzip and open tracker_map.html in a browser
 
+v1.05: Correctly handle GT compass room hallway potkey
 v1.04: Can X mark dungeon icon  
 v1.03: Update enemy icon to pokey  
 v1.02: Fixed bug in chest counter when counting exit chests  
