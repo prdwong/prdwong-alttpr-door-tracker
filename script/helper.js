@@ -81,6 +81,20 @@ function findHoveredScratchIcon(x, y) {
 	return -1;
 }
 
+//delete and redraw images
+//returns true if an icon was deleted
+function tryToDeleteHoveredIcon(event) {
+	var hover = findHoveredIcon(event.pageX, event.pageY);
+	if (hover !== -1) {
+		map[curDungeon].images.splice(hover, 1);
+		wipeImages();
+		drawImages();
+		refreshLines(event); //remove icon highlight
+		return true;
+	}
+	return false;
+}
+
 //Checks if start and end are already connected
 //Returns index in connect array if they are, otherwise -1. Only returns first match (there should only be one)
 function checkExistingConnector(start, end) {

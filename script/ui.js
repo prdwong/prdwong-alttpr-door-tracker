@@ -7,6 +7,7 @@ const DELETE_HOVER_COLOR = "rgba(255,0,0,0.5)";
 const BAD_MULTI_PIT_PLACEMENT = "rgba(255,0,0,0.25)";
 const IMG_CIRCLING_SIZE = 20; //px
 const IMG_CIRCLING_COLOR = "yellow";
+const RIGHT_DEL_CIRCLING_COLOR = "rgba(0,255,0,0.5)";
 const MOVING_LINE_COLOR = "maroon";
 const MOVE_ARROW_SIZE = 15; //px
 const DOUBLE_CLICK_TIME = 500; //ms
@@ -74,10 +75,25 @@ function refreshLines(event) {
 		}
 	});
 	
+	if (options.rightErase === true && event !== null) {
+		var img = null;
+		var highlight = findHoveredIcon(event.pageX, event.pageY);
+		if (highlight !== -1) img = map[curDungeon].images[highlight];
+		//Circle highlighted icons for deletion
+		if (img !== null) {
+			ctx.strokeStyle = RIGHT_DEL_CIRCLING_COLOR;
+			ctx.beginPath();
+			ctx.arc(DUNGEON_WINDOW_WIDTH + img.x, MAP_OFFSET_Y + img.y, IMG_CIRCLING_SIZE/2, 0, 2*Math.PI);
+			ctx.stroke();
+		}
+	}
+
 	if (options.mode === "connect" || options.connectPlus === true) {
 		//Draw the dynamic connector line to the mouse pointer
 		var start = document.getElementById("exit"+options.connectStart.room+"_"+options.connectStart.exit).style;
 		var coord = calcRoomCoord(options.connectStart.room);
+		ctx.strokeStyle = EXIT_CONNECTING_COLOR;
+		ctx.beginPath();
 		ctx.moveTo(DUNGEON_WINDOW_WIDTH + DUNGEON_SCRATCH_WIDTH + coord.x + parseInt(start.left) + (EXIT_SIZE / 2), MAP_OFFSET_Y + coord.y + parseInt(start.top) + (EXIT_SIZE / 2));
 		ctx.lineTo(event.pageX, event.pageY);
 		ctx.stroke();
@@ -455,12 +471,7 @@ function trackerClick(event) {
 					refreshLines(event);
 					refreshVisible(cellName);
 				} else if (options.rightErase === true) { //delete hovered icon
-					var hover = findHoveredIcon(event.pageX, event.pageY);
-					if (hover !== -1) {
-						map[curDungeon].images.splice(hover, 1);
-						wipeImages();
-						drawImages();
-					}
+					tryToDeleteHoveredIcon(event);
 				}
 				//Default do nothing
 			}
@@ -524,7 +535,9 @@ function trackerClick(event) {
 					cancelConnectMode(event);
 					if (parseInt(cellName.substring(7)) !== curDungeon)
 						trackerClick(event);
-				} else { //Default cancel
+				} else if (options.rightErase === true && tryToDeleteHoveredIcon(event) === true) { //delete hovered icon
+					; //do no more
+				} else { //default cancel
 					cancelConnectMode(event);
 				}
 			}
@@ -591,6 +604,8 @@ function trackerClick(event) {
 							cancelImagerMode(); //Don't carry the icon into delete function
 						startSpecialMode(parseInt(cellName.substring(4)));
 					}
+				} else if (options.rightErase === true && tryToDeleteHoveredIcon(event) === true) { //delete hovered icon
+					; //do no more
 				} else { //Default cancel
 					cancelImagerMode();
 				}
@@ -667,6 +682,8 @@ function trackerClick(event) {
 							cancelSpecialMode();
 							refreshLines(event); //remove circling
 						}
+					} else if (options.rightErase === true && tryToDeleteHoveredIcon(event) === true) { //delete hovered icon
+						; //do no more
 					} else { //Default cancel
 						cancelSpecialMode();
 						refreshLines(event); //remove circling
@@ -718,6 +735,8 @@ function trackerClick(event) {
 							switchMap(parseInt(cellName.substring(7)), event);
 						else
 							cancelSpecialMode();
+					} else if (options.rightErase === true && tryToDeleteHoveredIcon(event) === true) { //delete hovered icon
+						; //do no more
 					} else { //Default cancel
 						cancelSpecialMode();
 						refreshVisible(cellName); //remove pre-visualization
@@ -768,6 +787,8 @@ function canvasMove(event) {
 		refreshLines(event); //Dynamic mover line drawing
 	} else if (options.mode === "special" && options.cursor === "delete") {
 		refreshLines(event); //Dynamic icon highlighting and red room highlighting in this mode
+	} else if (options.rightErase === true) { //Dynamic icon highlighting
+		refreshLines(event);
 	}
 }
 
