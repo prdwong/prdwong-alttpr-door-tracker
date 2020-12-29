@@ -13,6 +13,7 @@ User manual: https://docs.google.com/document/d/1qbxpZ1OLI4GwNCYdrcbW6RCxhT_GfVe
 How to install:  
 Unzip and open tracker_map.html in a browser
 
+v1.07: Fix reset bug  
 v1.06: Prioritize right click to delete icons over cancelling modes  
   Highlight icons to be deleted when right click erase option is turned on  
 v1.05: Correctly handle GT compass room hallway potkey  
