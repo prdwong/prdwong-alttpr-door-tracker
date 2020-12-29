@@ -1010,7 +1010,7 @@ function button_click(but) {
 			options.rightErase = document.getElementById("opt_eraseR_enable").checked;
 			InitializeDungeonMaps();
 			refreshVisible();
-			refreshLines();
+			refreshLines(null);
 			wipeImages();
 			drawImages();
 			document.getElementById("options").style.display = "none";
