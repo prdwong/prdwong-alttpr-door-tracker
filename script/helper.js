@@ -1,31 +1,69 @@
 //Helper calculation functions
 
-/*MAGIC NUMBER FUNCTIONS*/
+
+//*** MAGIC NUMBER FUNCTIONS
+
 //Positions exit boxes
 function translateExitPos(indexStr) {
 	var index = parseInt(indexStr)
 	var coord = {};
 	switch (index) {
-		case 0: coord.x = 4; coord.y = -8; break;
-		case 1: coord.x = 24; coord.y = -8; break;
-		case 2: coord.x = 44; coord.y = -8; break;
-		case 3: coord.x = -8; coord.y = 4; break;
-		case 4: coord.x = 56; coord.y = 4; break;
-		case 5: coord.x = -8; coord.y = 24; break;
-		case 6: coord.x = 56; coord.y = 24; break;
-		case 7: coord.x = -8; coord.y = 44; break;
-		case 8: coord.x = 56; coord.y = 44; break;
-		case 9: coord.x = 4; coord.y = 56; break;
-		case 10: coord.x = 24; coord.y = 56; break;
-		case 11: coord.x = 44; coord.y = 56; break;
+		case 0: coord.x = 12; coord.y = -2; break;
+		case 1: coord.x = 32; coord.y = -2; break;
+		case 2: coord.x = 52; coord.y = -2; break;
+		case 3: coord.x = -2; coord.y = 12; break;
+		case 4: coord.x = 66; coord.y = 12; break;
+		case 5: coord.x = -2; coord.y = 32; break;
+		case 6: coord.x = 66; coord.y = 32; break;
+		case 7: coord.x = -2; coord.y = 52; break;
+		case 8: coord.x = 66; coord.y = 52; break;
+		case 9: coord.x = 12; coord.y = 66; break;
+		case 10: coord.x = 32; coord.y = 66; break;
+		case 11: coord.x = 52; coord.y = 66; break;
 		default: coord.x = 0; coord.y = 0; break;
 	}
 	return coord;
 }
 
-/*GENERIC HELPER FUNCTIONS*/
 
-//Calculate x/y coord of room (upper left corner)
+//*** GENERIC HELPER FUNCTIONS
+
+//given an rgb string and opacity value, return the rgba string
+function rgb2rgba(colorStr, opacity) {
+	if (colorStr.substring(0, 3) !== "rgb")
+		console.log("Color doesn't support alpha value: "+colorStr);
+	return colorStr.substring(0, colorStr.indexOf(")"))+","+opacity+")";
+}
+
+//Extracts room/exit number from a event.target.id string
+//Free standing icons may be placed outside rooms, in which case NaN will be returned (their id contains "_A_"
+function getRoomNumFromID(id) {
+	if (id.substring(0, 2) === "i_")
+		id = id.substring(2);
+	if (id.substring(0, 4) === "room" || id.substring(0, 4) === "exit")
+		return parseInt(id.substring(4, 6));
+	if (id.substring(0, 4) === "free" && id.split("_").length - 1 > 1)
+		return parseInt(id.substring(id.indexOf("_")+1, id.indexOf("_")+1 + id.substring(id.indexOf("_")+1).indexOf("_")));
+	return -1;
+}
+function getExitNumFromID(id) {
+	if (id.substring(0, 2) === "i_")
+		id = id.substring(2);
+	if (id.substring(0, 4) === "exit")
+		return parseInt(id.substring(id.indexOf("_")+1));
+	return -1;
+}
+
+//Returns true if exits can be created/destroyed for the specified room
+//disableExits option set to true, then pre-defined tiles cannot have exit modification
+function exitModificationAllowed(room) {
+	roomData = map[curDungeon].rooms[room];
+	if (options.disableExits === true && roomData.icon !== "")
+		return false;
+	return true;
+}
+
+//Calculate x/y coord of room (upper left corner) within the mapper element
 function calcRoomCoord(room) {
 	var coord = {};
 	coord.x = (room % NUM_MAP_COLUMNS) * (ROOM_SIZE + ROOM_PADDING) + ROOM_PADDING;
@@ -33,133 +71,112 @@ function calcRoomCoord(room) {
 	return coord;
 }
 
+function assignOptions() {
+	options.potsanity = document.getElementById("opt_potsanity_on").checked;
+	options.lobbyshuffle = document.getElementById("opt_lobby_on").checked;
+	options.showcounter = document.getElementById("opt_counter_on").checked;
+	options.disableExits = document.getElementById("opt_exit_disable").checked;
+	options.rightErase = document.getElementById("opt_eraseR_enable").checked;
+	options.multipleConnectors = document.getElementById("opt_multiConn_enable").checked;
+	options.superEnable = document.getElementById("opt_super_enable").checked;
+}
+
+
+//*** COUNTER HELPERS
+
 //Count how many chest and big chest icons there are
+//Also counts boss icon
 function countChests(dungeon) {
 	chestCount = 0;
-	map[dungeon].images.forEach(function(img, imgNum) {
-		if (img.img === "chest" || img.img === "bigchest")
+	var imgs2count = ["chest", "bigchest"];
+	
+	for (var i = 0; i < map[dungeon].images.length; i++) {
+		var freeUrl = document.getElementById(map[dungeon].images[i]).style.backgroundImage;
+		var img = freeUrl.substring(freeUrl.indexOf("/") + 1, freeUrl.indexOf(".png"));
+		if (imgs2count.indexOf(img) !== -1
+			|| (img === "boss" && [0,4,12].indexOf(dungeon) === -1))
 			chestCount++;
-	});
+	}
 	for (var i = 0; i < ROOM_NUM; i++)
 		for (var j = 0; j < EXIT_NUM; j++) {
-			if ((map[dungeon].rooms[i].exits[j].icon === "chest" || map[dungeon].rooms[i].exits[j].icon === "bigchest")
-				&& map[dungeon].rooms[i].exits[j].state === 0)
+			var exitData = map[dungeon].rooms[i].exits[j];
+			if (imgs2count.indexOf(exitData.icon) !== -1
+				|| (exitData.icon === "boss" && [0,4,12].indexOf(dungeon) === -1))
 				chestCount++;
 		}
 	return chestCount;
 }
 
+//Count how many small key icons there are
+function countKeys(dungeon) {
+	keyCount = 0;
+	var imgs2count = ["ditems_sk", "ban_sk"];
+	
+	for (var i = 0; i < map[dungeon].images.length; i++) {
+		var freeUrl = document.getElementById(map[dungeon].images[i]).style.backgroundImage;
+		var img = freeUrl.substring(freeUrl.indexOf("/") + 1, freeUrl.indexOf(".png"));
+		if (imgs2count.indexOf(img) !== -1)
+			keyCount++;
+	}
+	for (var i = 0; i < ROOM_NUM; i++)
+		for (var j = 0; j < EXIT_NUM; j++) {
+			var exitData = map[dungeon].rooms[i].exits[j];
+			if (imgs2count.indexOf(exitData.icon) !== -1)
+				keyCount++;
+		}
+	return keyCount;
+}
+
+//Update counter2 for the current dungeon, based on the click
+function scratchCounterUpdate(click) {
+	if (click === 0) //left click counter down
+		map[curDungeon].counter2 = Math.max(0, map[curDungeon].counter2 - 1);
+	if (click === 2) //right click counter up
+		map[curDungeon].counter2 += 1;
+	updateDungeonCounterText(curDungeon);
+}
+
+
+//*** FREE STANDING ICON HELPERS
+
 //Find if we are hovering over an icon (x and y are event.pageX/event.pageY coords)
-//Returns the latest (topmost) icon index, -1 if no icon found
+//Returns the latest (topmost) icon id, -1 if no icon found
 function findHoveredIcon(x, y) {
-	if (x >= DUNGEON_WINDOW_WIDTH && x < DUNGEON_WINDOW_WIDTH + DUNGEON_SCRATCH_WIDTH + MAP_SIZE
-		&& y >= MAP_OFFSET_Y && y < MAP_OFFSET_Y + MAP_SIZE)
-		for (var i = map[curDungeon].images.length - 1; i >= 0; i--) {
-			if (x - DUNGEON_WINDOW_WIDTH >= map[curDungeon].images[i].x - FREEIMG_SIZE/2
-				&& y - MAP_OFFSET_Y >= map[curDungeon].images[i].y - FREEIMG_SIZE/2
-				&& x - DUNGEON_WINDOW_WIDTH <= map[curDungeon].images[i].x + FREEIMG_SIZE/2
-				&& y - MAP_OFFSET_Y <= map[curDungeon].images[i].y + FREEIMG_SIZE/2) {
-				return i;
-			}
+	for (var i = document.getElementById("easel").childNodes.length - 2; i >= 0; i -= 2) {
+		var el = document.getElementById("easel").childNodes[i];
+		if (map[curDungeon].images.indexOf(el.id) !== -1 || options.images.indexOf(el.id) !== -1) {
+			iconStylex = parseInt(el.style.left) + parseInt(el.style.marginLeft) + DUNGEON_WINDOW_WIDTH;
+			iconStyley = parseInt(el.style.top) + parseInt(el.style.marginTop);
+			if (x >= iconStylex && x < iconStylex + FREEIMG_SIZE
+				&& y >= iconStyley && y < iconStyley + FREEIMG_SIZE)
+				return el.id;
 		}
+	}
 	return -1;
 }
 
-//Find if we are hovering over an icon (x and y are event.pageX/event.pageY coords)
-//Returns the latest (topmost) icon index, -1 if no icon found
-function findHoveredScratchIcon(x, y) {
-	if (x >= DUNGEON_WINDOW_WIDTH && x < DUNGEON_WINDOW_WIDTH + DUNGEON_SCRATCH_WIDTH + MAP_SIZE
-		&& y >= MAP_OFFSET_Y && y < MAP_OFFSET_Y + MAP_SIZE)
-		for (var i = options.images.length - 1; i >= 0; i--) {
-			if (x - DUNGEON_WINDOW_WIDTH >= options.images[i].x - FREEIMG_SIZE/2
-				&& y - MAP_OFFSET_Y >= options.images[i].y - FREEIMG_SIZE/2
-				&& x - DUNGEON_WINDOW_WIDTH <= options.images[i].x + FREEIMG_SIZE/2
-				&& y - MAP_OFFSET_Y <= options.images[i].y + FREEIMG_SIZE/2) {
-				return i;
-			}
-		}
-	return -1;
-}
-
-//delete and redraw images
+//delete the latest icon under the cursor
 //returns true if an icon was deleted
 function tryToDeleteHoveredIcon(event) {
-	var hover = findHoveredIcon(event.pageX, event.pageY);
-	if (hover !== -1) {
-		map[curDungeon].images.splice(hover, 1);
-		wipeImages();
-		drawImages();
-		refreshLines(event); //remove icon highlight
-		return true;
-	}
-	return false;
-}
-
-//Checks if start and end are already connected
-//Returns index in connect array if they are, otherwise -1. Only returns first match (there should only be one)
-function checkExistingConnector(start, end) {
-	for (var i = 0; i < map[curDungeon].connects.length; i++) {
-		var test = map[curDungeon].connects[i];
-		if ((test.start.room === start.room && test.start.exit === start.exit && test.end.room === end.room && test.end.exit == end.exit)
-			|| (test.end.room === start.room && test.end.exit === start.exit && test.start.room === end.room && test.start.exit == end.exit))
-			return i;
-	}
-	return -1;
-}
-
-//adds connector to the connector list only. no room/exit state changes
-//del indicates if you want an existing connector deleted or left alone
-//returns true if connector list was added to
-function addConnector(start, end, del = false) {
-	var exists = checkExistingConnector(start, end);
-	if (exists !== -1) { //it already exists, delete it
-		if (del === true)
-			map[curDungeon].connects.splice(exists, 1);
-		//else leave it alone
-	} else {
-		var connect = {};
-		connect.start = {room:start.room, exit:start.exit};
-		connect.end = {room:end.room, exit:end.exit};
-		map[curDungeon].connects.push(connect);
-		return true;
-	}
-	return false;
-}
-
-//cycles exit state
-function cycleExitState(roomNum, exitNum) {
-	exit = map[curDungeon].rooms[roomNum].exits[exitNum];
-	if (exit.visible === false)
-		if (options.disableExits === true)
-			; //do nothing
+	var iconid = findHoveredIcon(event.pageX, event.pageY);
+	if (iconid !== -1) {
+		document.getElementById(iconid).remove();
+		document.getElementById("i_"+iconid).remove();
+		if (map[curDungeon].images.indexOf(iconid) !== -1)
+			map[curDungeon].images.splice(map[curDungeon].images.indexOf(iconid), 1);
 		else
-			exit.visible = true;
-	else {
-		exit.state++;
-		if (exit.state >= EXIT_STATE_NUM) {
-			if (options.disableExits === true && map[curDungeon].rooms[roomNum].icon !== "")
-				; //do not turn off
-			else
-				exit.visible = false;
-			exit.state = 0;
-			exit.icon = "";
-		}
+			options.images.splice(options.images.indexOf(iconid), 1);
+		return true;
 	}
+	return false;
 }
 
+//returns list of ids of icons in the specified room
 function findIconsInRoom(roomNum) {
 	var iconArray = new Array();
-	var rowSrc = parseInt(roomNum / NUM_MAP_COLUMNS);
-	var colSrc = roomNum % NUM_MAP_COLUMNS;
-	var SrcminX = DUNGEON_SCRATCH_WIDTH + ROOM_PADDING/2 + colSrc * (ROOM_SIZE + ROOM_PADDING);
-	var SrcmaxX = DUNGEON_SCRATCH_WIDTH + ROOM_PADDING/2 + (colSrc + 1) * (ROOM_SIZE + ROOM_PADDING);
-	var SrcminY = ROOM_PADDING/2 + rowSrc * (ROOM_SIZE + ROOM_PADDING);
-	var SrcmaxY = ROOM_PADDING/2 + (rowSrc + 1) * (ROOM_SIZE + ROOM_PADDING);
-	for (var i = map[curDungeon].images.length - 1; i >= 0; i--) {
-		if (map[curDungeon].images[i].x > SrcminX && map[curDungeon].images[i].x <= SrcmaxX
-			&& map[curDungeon].images[i].y > SrcminY && map[curDungeon].images[i].y <= SrcmaxY) {
-			iconArray.push(i);
-		}
+	for (var i = 0; i < map[curDungeon].images.length; i++) {
+		if (getRoomNumFromID(map[curDungeon].images[i]) === roomNum)
+			iconArray.push(map[curDungeon].images[i]);
 	}
 	return iconArray;
 }
@@ -167,42 +184,237 @@ function findIconsInRoom(roomNum) {
 //deletes all free-standing icons for the specified room tile
 function deleteIconsFromRoom(roomNum) {
 	var icons = findIconsInRoom(roomNum);
-	for (var i = 0; i < icons.length; i++) {
-		map[curDungeon].images.splice(icons[i], 1);
+	for (var i = icons.length - 1; i >= 0; i--) {
+		document.getElementById(icons[i]).remove();
+		document.getElementById("i_"+icons[i]).remove();
+		map[curDungeon].images.splice(map[curDungeon].images.indexOf(icons[i]), 1);
 	}
+}
+
+
+//*** CONNECTOR HELPERS
+
+//Returns true if room+exit matches options.connectStart
+function isStartConnectExit(room, exit) {
+	return ((options.mode === "connect" || options.connectPlus === true)
+		&& options.connectStart.room === room && options.connectStart.exit === exit)
+}
+
+//Checks if start and end are already connected
+//Returns index in connect array if they are, otherwise -1. Only returns first match (there should only be one)
+function checkDuplicateConnector(start, end) {
+	for (var i = 0; i < map[curDungeon].connects.length; i++) {
+		var test = map[curDungeon].connects[i];
+		if (test.show === true
+			&& ((test.start.room === start.room && test.start.exit === start.exit && test.end.room === end.room && test.end.exit == end.exit)
+				|| (test.end.room === start.room && test.end.exit === start.exit && test.start.room === end.room && test.start.exit == end.exit)))
+			return i;
+	}
+	return -1;
+}
+
+//check to see if an exit has a connector attached to it
+function isConnected(room, exit) {
+	for (var i = 0; i < map[curDungeon].connects.length; i++) {
+		if (map[curDungeon].connects[i].show === true
+			&& ((map[curDungeon].connects[i].start.room === room && map[curDungeon].connects[i].start.exit === exit)
+				|| (map[curDungeon].connects[i].end.room === room && map[curDungeon].connects[i].end.exit === exit)))
+			return true;
+	}
+	return false;
+}
+
+//return array of objects (index,room,exit) that connect to this exit
+//hidden = true will also return connectors that have show=false
+function findConnections(room, exit, hidden = false) {
+	var arr = new Array();
+	for (var i = 0; i < map[curDungeon].connects.length; i++) {
+		var connector = map[curDungeon].connects[i];
+		if (connector.show === true || hidden === true) {
+			if (connector.start.room === room && connector.start.exit === exit)
+				arr.push({index:i, room:connector.end.room, exit:connector.end.exit});
+			else if (connector.end.room === room && connector.end.exit === exit)
+				arr.push({index:i, room:connector.start.room, exit:connector.start.exit});
+		}
+	}
+	return arr;
+}
+
+//looks through the connectors of the current dungeon and deletes connectors that share an endpoint with the specified connector
+function handleOldConnectors(connector) {
+	var deleted = false;
+	var startRoom = connector.start.room;
+	var startExit = connector.start.exit;
+	var endRoom = connector.end.room;
+	var endExit = connector.end.exit;
+	for (var i = map[curDungeon].connects.length - 1; i >= 0; i--) {
+		var testConnector = map[curDungeon].connects[i];
+		if ((testConnector.start.room === startRoom && testConnector.start.exit === startExit)
+			|| (testConnector.start.room === endRoom && testConnector.start.exit === endExit)
+			|| (testConnector.end.room === startRoom && testConnector.end.exit === startExit)
+			|| (testConnector.end.room === endRoom && testConnector.end.exit === endExit)) {
+			map[curDungeon].connects.splice(i, 1);
+			refreshExitGfx(testConnector.start.room, testConnector.start.exit);
+			refreshExitGfx(testConnector.end.room, testConnector.end.exit);
+			deleted = true;
+		}
+	}
+	if (deleted === true)
+		refreshLines(null, true);
+}
+
+//Mark connectors as "show" if they connect to the specified exit. Both endpoints must be visible
+function reinstateConnectors(room, exit) {
+	var list = findConnections(room, exit, true);
+	for (var i = 0; i < list.length; i++) {
+		var connector = map[curDungeon].connects[list[i].index];
+		if (connector.show === false && map[curDungeon].rooms[list[i].room].exits[list[i].exit].visible === true) {
+			connector.show = true;
+			connector.drawn = false;
+			refreshExitGfx(list[i].room, list[i].exit);
+			refreshLines(null);
+		}
+	}
+}
+
+//adds connector to the connector list
+//del indicates if you want an existing connector deleted or left alone
+//returns true if connector list was added to
+function addConnector(start, end, del = false) {
+	var exists = checkDuplicateConnector(start, end);
+	if (exists !== -1) { //it already exists, delete it
+		if (del === true) {
+			map[curDungeon].connects.splice(exists, 1);
+			refreshExitGfx(start.room, start.exit);
+			refreshExitGfx(end.room, end.exit);
+			refreshLines(null, true); //redraw all connectors since we deleted one
+		} //else leave it alone
+	} else {
+		var connect = {drawn:false, show:true};
+		connect.start = {room:start.room, exit:start.exit};
+		connect.end = {room:end.room, exit:end.exit};
+		if (options.multipleConnectors === false)
+			handleOldConnectors(connect); //remove connectors getting deleted first
+		map[curDungeon].connects.push(connect);
+		refreshExitGfx(start.room, start.exit);
+		refreshExitGfx(end.room, end.exit);
+		refreshLines(null); //draw undrawn connectors
+		return true;
+	}
+	return false;
 }
 
 //removes all connectors to the room, in prep for deletion or replacement
+//Because deletion is expected, does not refresh exit gfx
 function resetConnections(roomNum) {
+	var checks = new Array();
 	for (var i = map[curDungeon].connects.length - 1; i >= 0; i--) {
 		if (map[curDungeon].connects[i].start.room === roomNum
-			|| map[curDungeon].connects[i].end.room === roomNum)
+			|| map[curDungeon].connects[i].end.room === roomNum) {
+			if (map[curDungeon].connects[i].start.room !== roomNum) {
+				var del = new Object();
+				del.room = map[curDungeon].connects[i].start.room;
+				del.exit = map[curDungeon].connects[i].start.exit;
+				checks.push(del);
+			} else if (map[curDungeon].connects[i].end.room !== roomNum) {
+				var del = new Object();
+				del.room = map[curDungeon].connects[i].end.room;
+				del.exit = map[curDungeon].connects[i].end.exit;
+				checks.push(del);
+			}
 			map[curDungeon].connects.splice(i, 1);
+		}
+	}
+	for (var i = 0; i < checks.length; i++) {
+		refreshExitGfx(checks[i].room, checks[i].exit);
+	}
+	if (checks.length > 0) refreshLines(null, true); //redraw connectors if a connector was deleted
+}
+
+
+//*** ROOM/EXIT HELPERS
+
+//return the state of the exit, based on the icon
+function getExitState(roomNum, exitNum) {
+	var exitData = map[curDungeon].rooms[roomNum].exits[exitNum];
+	if (EXIT_STATE_ICONS.indexOf(exitData.icon) !== -1)
+		return EXIT_STATE_ICONS.indexOf(exitData.icon);
+	return 0;
+}
+
+//Cycles exit state
+function cycleExitState(roomNum, exitNum) {
+	var exit = map[curDungeon].rooms[roomNum].exits[exitNum];
+	if (exit.visible === false) {
+		exit.visible = true;
+		reinstateConnectors(roomNum, exitNum);
+		refreshExitGfx(roomNum, exitNum);
+	} else {
+		var exitState = getExitState(roomNum, exitNum);
+		exitState++;
+		if (exitState >= EXIT_STATE_ICONS.length) {
+			exitState = 0;
+			if (exitModificationAllowed(roomNum) === true) { //remove the exit
+				exit.visible = false;
+				var list = findConnections(roomNum, exitNum);
+				for (var i = 0; i < list.length; i++) {
+					map[curDungeon].connects[list[i].index].show = false;
+					refreshExitGfx(list[i].room, list[i].exit);
+				}
+				if (list.length > 0) refreshLines(null, true); //redraw all because some are invisible now
+			}
+		}
+		exit.icon = EXIT_STATE_ICONS[exitState];
+		refreshExitGfx(roomNum, exitNum);
+		updateDungeonCounterText(curDungeon);
 	}
 }
 
+//Sets icon of exit to the specified value
+//Syncs state depending on the icon
+//Creates room and exit if they were not before
+function assignIconToExit(room, exit, iconName) {
+	var roomData = map[curDungeon].rooms[room];
+	var exitData = roomData.exits[exit];
+	roomData.visible = true;
+	exitData.visible = true;
+	exitData.icon = iconName;
+	updateDungeonCounterText(curDungeon);
+	refreshRoomGfx(room);
+	refreshExitGfx(room, exit);
+}
 
-
+//Deletes the exit and all its connections
 function deleteExit(roomNum, exitNum) {
 	map[curDungeon].rooms[roomNum].exits[exitNum].visible = false;
-	map[curDungeon].rooms[roomNum].exits[exitNum].state = 0;
 	map[curDungeon].rooms[roomNum].exits[exitNum].icon = "";
+	var list = findConnections(roomNum, exitNum);
+	for (var i = list.length - 1; i >= 0; i--) {
+		map[curDungeon].connects.splice(list[i].index, 1);
+		refreshExitGfx(list[i].room, list[i].exit);
+	}
+	if (isStartConnectExit(roomNum, exitNum)) {
+		if (options.connectPlus === true) {
+			clearDynamicLine();
+			options.connectPlus = false;
+		} else
+			cancelConnectMode();
+	}
+	if (list.length > 0) refreshLines(null, true);
+	refreshExitGfx(roomNum, exitNum);
+	updateDungeonCounterText(curDungeon);
 }
 
 //delete a room
-//For some reason, need to wipe/redraw images outside of this function
 function deleteRoom(roomNum) {
 	map[curDungeon].rooms[roomNum].visible = false;
 	map[curDungeon].rooms[roomNum].icon = "";
 	for (var i = 0; i < EXIT_NUM; i++)
 		deleteExit(roomNum, i);
-
-	resetConnections(roomNum);
-	refreshLines(event); //remove connections
-
 	deleteIconsFromRoom(roomNum);
 }
 
+//Takes tile from specIndex special menu and places it into the specified dungeon+room
 function fillTile(dungeon, specIndex, tile, destRoom) {
 	var mapRoom = map[dungeon].rooms[destRoom];
 	var srcRoom = specData[specIndex].rooms[tile];
@@ -211,37 +423,89 @@ function fillTile(dungeon, specIndex, tile, destRoom) {
 	mapRoom.icon = srcRoom.img;
 	for (var j = 0; j < srcRoom.exits.length; j++) {
 		mapRoom.exits[srcRoom.exits[j]].visible = true;
-		mapRoom.exits[srcRoom.exits[j]].state = 0;
+		mapRoom.exits[srcRoom.exits[j]].icon = "";
 		
-		if (srcRoom.icons[j].substring(0, 8) === "entrance" && options.lobbyshuffle === true && srcRoom.icons[j].substring(8) !== "drop")
-			; //don't fill this entrance icon
-		else
+		if (options.lobbyshuffle === false || ["entrancem", "entrancew", "entrancee", "entranceb"].indexOf(srcRoom.icons[j]) === -1)
 			mapRoom.exits[srcRoom.exits[j]].icon = srcRoom.icons[j];
 	}
+	if (dungeon === curDungeon) refreshRoomAndExitsGfx(destRoom)
 
 	if (specData[specIndex].rooms[tile].imgs !== undefined) {
 		for (var j = 0; j < specData[specIndex].rooms[tile].imgs.length; j++) {
-			var newImg = {};
-			newImg.img = specData[specIndex].rooms[tile].imgs[j].img;
-			
-			//don't push keydrops for now
-			if (newImg.img === "potkey")
-				newImg.img = (options.potsanity === true ? "chest" : "");
-			else if (newImg.img === "potbigkey")
-				newImg.img = (options.potsanity === true ? "chest" : "");
-			
+			var icon = specData[specIndex].rooms[tile].imgs[j].img;
+			if (icon === "potkey")
+				icon = (options.potsanity === true ? "chest" : "")
+			else if (icon === "potbigkey")
+				icon = (options.potsanity === true ? "chest" : "")
+
 			var coord = calcRoomCoord(destRoom);
-			newImg.x = DUNGEON_SCRATCH_WIDTH + coord.x + specData[specIndex].rooms[tile].imgs[j].x;
-			newImg.y = coord.y + specData[specIndex].rooms[tile].imgs[j].y;
-			newImg.drawn = false;
-			if (newImg.img !== "")
-				map[dungeon].images.push(newImg);
+			var imgx = DUNGEON_WINDOW_WIDTH + DUNGEON_SCRATCH_WIDTH + coord.x + specData[specIndex].rooms[tile].imgs[j].x;
+			var imgy = MAP_OFFSET_Y + coord.y + specData[specIndex].rooms[tile].imgs[j].y;
+			if (icon !== "")
+				addFreeStandingIconElement(imgx, imgy, icon, dungeon);
 		}
+	}
+	updateDungeonCounterText(dungeon);
+}
+
+//Pre-defined tile placer
+function specialHandler(destRoom) {
+	var specIndex = options.special;
+
+	if (specData[specIndex].multi === true) { //Multi-linked room placement
+		var validRoom = new Array();
+		for (var i = 0; i < specData[specIndex].rooms.length; i++)
+			if (destRoom + i * NUM_MAP_COLUMNS < ROOM_NUM)
+				validRoom[i] = true;
+			else
+				validRoom[i] = false;
+		
+		//delete whatever was there before
+		for (var i = 0; i < specData[specIndex].rooms.length; i++)
+			if (validRoom[i] === true)
+				deleteRoom(destRoom + i * NUM_MAP_COLUMNS);
+			
+		for (var i = 0; i < specData[specIndex].rooms.length; i++)
+			if (validRoom[i] === true)
+				fillTile(curDungeon, specIndex, i, destRoom + i * NUM_MAP_COLUMNS);
+		
+		if (specData[specIndex].connectors !== undefined) {
+			for (var i = 0; i < specData[specIndex].connectors.length; i++) {
+				var conn = specData[specIndex].connectors[i];
+				if (validRoom[conn.room1] === true && validRoom[conn.room2] === true) {
+					var startRoom = destRoom + conn.room1 * NUM_MAP_COLUMNS;
+					var endRoom = destRoom + conn.room2 * NUM_MAP_COLUMNS;
+					addConnector({room:startRoom, exit:conn.exit1}, {room:endRoom, exit:conn.exit2});
+				}
+			}
+		}
+
+	} else { //Single room placement
+		deleteRoom(destRoom);
+		fillTile(curDungeon, specIndex, options.state[specIndex], destRoom);
 	}
 }
 
+
+
+
+
+
 //Place pre-defined tiles
 function InitializeDungeonMaps() {
+	for (var i = 0; i < 13; i++)
+		for (var j = 0; j < map[i].images.length; j++) {
+			document.getElementById("i_"+map[i].images[j]).remove();
+			document.getElementById(map[i].images[j]).remove();
+		}
+	for (var j = 0; j < options.images.length; j++) {
+		document.getElementById("i_"+options.images[j]).remove();
+		document.getElementById(options.images[j]).remove();
+	}
+	for (var i = 0; i < 13; i++) {
+		var dungStyle = document.getElementById("dung"+i).style;
+		dungStyle.backgroundImage = "url(images/dung"+i+".png)";
+	}
 	resetAll();
 	fillTile(0, 3, 8, 7); //escape drop
 	fillTile(8, 8, 8, 18); //TT jail
@@ -279,7 +543,7 @@ function InitializeDungeonMaps() {
 	map[3].rooms[2].exits[4].visible = true;
 	map[3].rooms[2].exits[10].visible = true;
 	map[3].rooms[2].exits[10].icon = "pit";
-	map[3].images.push({drawn:false, img:"boss", x:38+32+(64+32)*2+32, y:32+(64+32)*0+32});
+	addFreeStandingIconElement(DUNGEON_WINDOW_WIDTH+DUNGEON_SCRATCH_WIDTH+calcRoomCoord(2).x+32, 33+(64+32)*0+32, "boss", 3);
 
 	//Hera4
 	map[3].rooms[7].visible = true;
@@ -300,9 +564,9 @@ function InitializeDungeonMaps() {
 	map[3].rooms[12].exits[10].visible = true;
 	map[3].rooms[12].exits[1].icon = "entrancedrop";
 	map[3].rooms[12].exits[10].icon = "pit";
-	map[3].images.push({drawn:false, img:"hint", x:38+32+(64+32)*2+32, y:32+(64+32)*2+24});
-	map[3].images.push({drawn:false, img:"bigchest", x:38+32+(64+32)*2+32, y:32+(64+32)*2+16});
-	map[3].images.push({drawn:false, img:"chest", x:38+32+(64+32)*2+32, y:32+(64+32)*2+32});
+	addFreeStandingIconElement(DUNGEON_WINDOW_WIDTH+DUNGEON_SCRATCH_WIDTH+calcRoomCoord(12).x+32, 33+(64+32)*2+24, "hint", 3);
+	addFreeStandingIconElement(DUNGEON_WINDOW_WIDTH+DUNGEON_SCRATCH_WIDTH+calcRoomCoord(12).x+32, 33+(64+32)*2+16, "bigchest", 3);
+	addFreeStandingIconElement(DUNGEON_WINDOW_WIDTH+DUNGEON_SCRATCH_WIDTH+calcRoomCoord(12).x+32, 33+(64+32)*2+32, "chest", 3);
 
 	//Hera2
 	map[3].rooms[17].visible = true;
@@ -313,8 +577,8 @@ function InitializeDungeonMaps() {
 	map[3].rooms[17].exits[10].visible = true;
 	map[3].rooms[17].exits[1].icon = "entrancedrop";
 	map[3].rooms[17].exits[10].icon = "pit";
-	map[3].images.push({drawn:false, img:"xtalswitch", x:38+32+(64+32)*2+48, y:32+(64+32)*3+32});
-	map[3].images.push({drawn:false, img:"ditems_bk", x:38+32+(64+32)*2+16, y:32+(64+32)*3+32});
+	addFreeStandingIconElement(DUNGEON_WINDOW_WIDTH+DUNGEON_SCRATCH_WIDTH+calcRoomCoord(17).x+48, 33+(64+32)*3+32, "xtalswitch", 3);
+	addFreeStandingIconElement(DUNGEON_WINDOW_WIDTH+DUNGEON_SCRATCH_WIDTH+calcRoomCoord(17).x+16, 33+(64+32)*3+32, "ditems_bk", 3);
 
 	//Hera1
 	map[3].rooms[22].visible = true;
@@ -327,24 +591,32 @@ function InitializeDungeonMaps() {
 	map[3].rooms[22].exits[1].icon = "entrancedrop";
 	if (options.lobbyshuffle === false)
 		map[3].rooms[22].exits[10].icon = "entrancem";
-	map[3].images.push({drawn:false, img:"hint", x:38+32+(64+32)*2+32, y:32+(64+32)*4+24});
-	map[3].images.push({drawn:false, img:"chest", x:38+32+(64+32)*2+32, y:32+(64+32)*4+16});
-	map[3].images.push({drawn:false, img:"switch1", x:38+32+(64+32)*2+32, y:32+(64+32)*4+40});
-	map[3].images.push({drawn:false, img:"xtalswitch", x:38+32+(64+32)*2+32, y:32+(64+32)*4+48});
+	addFreeStandingIconElement(DUNGEON_WINDOW_WIDTH+DUNGEON_SCRATCH_WIDTH+calcRoomCoord(22).x+32, 33+(64+32)*4+24, "hint", 3);
+	addFreeStandingIconElement(DUNGEON_WINDOW_WIDTH+DUNGEON_SCRATCH_WIDTH+calcRoomCoord(22).x+32, 33+(64+32)*4+16, "chest", 3);
+	addFreeStandingIconElement(DUNGEON_WINDOW_WIDTH+DUNGEON_SCRATCH_WIDTH+calcRoomCoord(22).x+32, 33+(64+32)*4+40, "switch1", 3);
+	addFreeStandingIconElement(DUNGEON_WINDOW_WIDTH+DUNGEON_SCRATCH_WIDTH+calcRoomCoord(22).x+32, 33+(64+32)*4+48, "xtalswitch", 3);
 
 	//Hera connectors
 	map[3].connects[0] = {};
 	map[3].connects[0].start = {room:2, exit:10};
 	map[3].connects[0].end = {room:7, exit:1};
+	map[3].connects[0].drawn = false;
+	map[3].connects[0].show = true;
 	map[3].connects[1] = {};
 	map[3].connects[1].start = {room:7, exit:10};
 	map[3].connects[1].end = {room:12, exit:1};
+	map[3].connects[1].drawn = false;
+	map[3].connects[1].show = true;
 	map[3].connects[2] = {};
 	map[3].connects[2].start = {room:12, exit:10};
 	map[3].connects[2].end = {room:17, exit:1};
+	map[3].connects[2].drawn = false;
+	map[3].connects[2].show = true;
 	map[3].connects[3] = {};
 	map[3].connects[3].start = {room:17, exit:10};
 	map[3].connects[3].end = {room:22, exit:1};
+	map[3].connects[3].drawn = false;
+	map[3].connects[3].show = true;
 	
 	//SW big chest
 	map[7].rooms[12].visible = true;
@@ -354,25 +626,25 @@ function InitializeDungeonMaps() {
 	map[7].rooms[12].icon = "swdrop3";
 	if (options.lobbyshuffle === false)
 		map[7].rooms[12].exits[9].icon = "entrancem";
-	map[7].images.push({drawn:false, img:"bigchest", x:38+32+(64+32)*2+16, y:32+(64+32)*2+40});
-	map[7].images.push({drawn:false, img:"chest", x:38+32+(64+32)*2+56, y:32+(64+32)*2+40});
-	map[7].images.push({drawn:false, img:"entrancedrop", x:38+32+(64+32)*2+48, y:32+(64+32)*2+16});
+	addFreeStandingIconElement(DUNGEON_WINDOW_WIDTH+DUNGEON_SCRATCH_WIDTH+calcRoomCoord(12).x+16, 33+(64+32)*2+40, "bigchest", 7);
+	addFreeStandingIconElement(DUNGEON_WINDOW_WIDTH+DUNGEON_SCRATCH_WIDTH+calcRoomCoord(12).x+56, 33+(64+32)*2+40, "chest", 7);
+	addFreeStandingIconElement(DUNGEON_WINDOW_WIDTH+DUNGEON_SCRATCH_WIDTH+calcRoomCoord(12).x+48, 33+(64+32)*2+16, "entrancedrop", 7);
 
 	//SW compass
 	map[7].rooms[16].visible = true;
 	map[7].rooms[16].icon = "swdrop1";
 	map[7].rooms[16].exits[2].visible = true;
 	map[7].rooms[16].exits[8].visible = true;
-	map[7].images.push({drawn:false, img:"chest", x:38+32+(64+32)*1+48, y:32+(64+32)*3+32});
-	map[7].images.push({drawn:false, img:"entrancedrop", x:38+32+(64+32)*1+16, y:32+(64+32)*3+16});
+	addFreeStandingIconElement(DUNGEON_WINDOW_WIDTH+DUNGEON_SCRATCH_WIDTH+calcRoomCoord(16).x+48, 33+(64+32)*3+32, "chest", 7);
+	addFreeStandingIconElement(DUNGEON_WINDOW_WIDTH+DUNGEON_SCRATCH_WIDTH+calcRoomCoord(16).x+16, 33+(64+32)*3+16, "entrancedrop", 7);
 
 	//SW pinball
 	map[7].rooms[17].visible = true;
 	map[7].rooms[17].icon = "swdrop2";
 	map[7].rooms[17].exits[2].visible = true;
 	map[7].rooms[17].exits[7].visible = true;
-	map[7].images.push({drawn:false, img:"chest", x:38+32+(64+32)*2+32, y:32+(64+32)*3+32});
-	map[7].images.push({drawn:false, img:"entrancedrop", x:38+32+(64+32)*2+32, y:32+(64+32)*3+16});
+	addFreeStandingIconElement(DUNGEON_WINDOW_WIDTH+DUNGEON_SCRATCH_WIDTH+calcRoomCoord(17).x+32, 33+(64+32)*3+32, "chest", 7);
+	addFreeStandingIconElement(DUNGEON_WINDOW_WIDTH+DUNGEON_SCRATCH_WIDTH+calcRoomCoord(17).x+32, 33+(64+32)*3+16, "entrancedrop", 7);
 
 	//SW middle drop
 	map[7].rooms[6].visible = true;
@@ -382,109 +654,19 @@ function InitializeDungeonMaps() {
 	if (options.lobbyshuffle === false)
 		map[7].rooms[6].exits[9].icon = "entrancew";
 	if (options.potsanity === true)
-		map[7].images.push({drawn:false, img:"chest", x:38+32+(64+32)*1+8, y:32+(64+32)*1+40});
-	map[7].images.push({drawn:false, img:"entrancedrop", x:38+32+(64+32)*1+48, y:32+(64+32)*1+16});
+		addFreeStandingIconElement(DUNGEON_WINDOW_WIDTH+DUNGEON_SCRATCH_WIDTH+calcRoomCoord(6).x+8, 33+(64+32)*1+40, "chest", 7);
+	addFreeStandingIconElement(DUNGEON_WINDOW_WIDTH+DUNGEON_SCRATCH_WIDTH+calcRoomCoord(6).x+48, 33+(64+32)*1+16, "entrancedrop", 7);
 
 	//SW boss drop
 	map[7].rooms[8].visible = true;
 	map[7].rooms[8].icon = "xswboss";
 	map[7].rooms[8].exits[9].visible = true;
 	if (options.potsanity === true)
-		map[7].images.push({drawn:false, img:"chest", x:38+32+(64+32)*3+8, y:32+(64+32)*1+40});
-	map[7].images.push({drawn:false, img:"boss", x:38+32+(64+32)*3+48, y:32+(64+32)*1+16});
+		addFreeStandingIconElement(DUNGEON_WINDOW_WIDTH+DUNGEON_SCRATCH_WIDTH+calcRoomCoord(3).x+8, 33+(64+32)*1+40, "chest", 7);
+	addFreeStandingIconElement(DUNGEON_WINDOW_WIDTH+DUNGEON_SCRATCH_WIDTH+calcRoomCoord(3).x+48, 33+(64+32)*1+16, "boss", 7);
 
 	for (var i = 0; i < 13; i++) {
 		updateDungeonCounterText(i);
 	}
 }
 
-//Fill in X marks if the tile has already been placed
-function updatePopupMarks(dungeon) {
-	for (var i = 0; i < specData[dungeon].rooms.length; i++) {
-		var placed = false;
-		for (var j = 0; j < 13; j++)
-			for (var k = 0; k < ROOM_NUM; k++)
-				if (map[j].rooms[k].icon === specData[dungeon].rooms[i].img)
-					placed = true;
-		var style = document.getElementById("specpop"+dungeon+"_"+i).style;
-		if (placed === true) {
-			style.backgroundImage = "url(\"images/halfxmark.png\"), url(\"images/"+specData[dungeon].rooms[i].img+".png\")";
-		} else {
-			style.backgroundImage = "url(\"images/"+specData[dungeon].rooms[i].img+".png\")";
-		}
-	}
-}
-
-
-
-//Pre-defined tile placer
-//destRoom is the room that is being applied to
-function specialHandler(destRoom) {
-	var specIndex = options.special;
-	var iconLength = map[curDungeon].images.length;
-	var iconsDeleted = false;
-
-	if (specData[specIndex].multi === true) {
-		//Multi-linked room placement
-		var validRoom = new Array();
-		for (var i = 0; i < specData[specIndex].rooms.length; i++) {
-			if (destRoom + i * NUM_MAP_COLUMNS < ROOM_NUM) //Old code to skip over prior placed rooms && map[curDungeon].rooms[destRoom + i * NUM_MAP_COLUMNS].visible === false)
-				validRoom[i] = true;
-			else
-				validRoom[i] = false;
-		}
-		
-		//delete whatever was there before
-		for (var i = 0; i < specData[specIndex].rooms.length; i++) {
-			if (validRoom[i] === true)
-				deleteRoom(destRoom + i * NUM_MAP_COLUMNS);
-		}
-		if (map[curDungeon].images.length !== iconLength) iconsDeleted = true;
-		
-		for (var i = 0; i < specData[specIndex].rooms.length; i++) {
-			if (validRoom[i] === true) {
-				var mapRoom = map[curDungeon].rooms[destRoom + i * NUM_MAP_COLUMNS];
-				var srcRoom = specData[specIndex].rooms[i];
-				mapRoom.visible = true;
-				mapRoom.icon = srcRoom.img;
-				for (var j = 0; j < srcRoom.exits.length; j++) {
-					mapRoom.exits[srcRoom.exits[j]].visible = true;
-					mapRoom.exits[srcRoom.exits[j]].state = 0;
-					mapRoom.exits[srcRoom.exits[j]].icon = srcRoom.icons[j];
-				}
-				
-				if (specData[specIndex].rooms[i].imgs !== undefined) {
-					for (var j = 0; j < specData[specIndex].rooms[i].imgs.length; j++) {
-						var newImg = {};
-						newImg.img = specData[specIndex].rooms[i].imgs[j].img;
-						var coord = calcRoomCoord(destRoom + i * NUM_MAP_COLUMNS);
-						newImg.x = DUNGEON_SCRATCH_WIDTH + coord.x + specData[specIndex].rooms[i].imgs[j].x;
-						newImg.y = coord.y + specData[specIndex].rooms[i].imgs[j].y;
-						newImg.drawn = false;
-						map[curDungeon].images.push(newImg);
-					}
-				}
-			}
-		}
-		if (specData[specIndex].connectors !== undefined) {
-			for (var i = 0; i < specData[specIndex].connectors.length; i++) {
-				var conn = specData[specIndex].connectors[i];
-				if (validRoom[conn.room1] === true && validRoom[conn.room2] === true) {
-					var startRoom = destRoom + conn.room1 * NUM_MAP_COLUMNS;
-					var endRoom = destRoom + conn.room2 * NUM_MAP_COLUMNS;
-					addConnector({room:startRoom, exit:conn.exit1}, {room:endRoom, exit:conn.exit2});
-				}
-			}
-		}
-
-	} else {
-		//Single room placement
-		deleteRoom(destRoom);
-		if (map[curDungeon].images.length !== iconLength) iconsDeleted = true;
-		fillTile(curDungeon, specIndex, options.state[specIndex], destRoom);
-	}
-	
-	if (iconsDeleted === true)
-		wipeImages();
-	drawImages();
-}

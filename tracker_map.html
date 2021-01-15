@@ -23,14 +23,14 @@ document.body.onmousedown = function(e) { if (e.button === 1) return false; }
 
 resetAll(); //initialize data structures
 
-
 const NUM_MAP_COLUMNS = 5;
 const NUM_ICON_COLUMNS = 14;
 
 //px settings
 const ROOM_SIZE = 64;
 const ROOM_PADDING = 32;
-const EXIT_SIZE = 16;
+const EXIT_SIZE = 20; //multiple of 2 for best perf
+const EXIT_BORDER_WIDTH = 1;
 const DUNGEON_WINDOW_WIDTH = 40;
 const DUNGEON_SCRATCH_WIDTH = 38;
 const MAP_OFFSET_Y = 1;
@@ -38,84 +38,80 @@ const ICON_WIN_X = 0;
 const ICON_WIN_Y = DUNGEON_WINDOW_WIDTH * 13;
 const ICON_SIZE = 45;
 const MAP_SIZE = (ROOM_SIZE * NUM_MAP_COLUMNS) + ROOM_PADDING * (NUM_MAP_COLUMNS + 1)
-const SPEC_BLOWUP_SIZE = 96;
+const SPEC_BLOWUP_SIZE = 102;
 const SPEC_BLOWUP_PADDING = 5;
 const SPEC_BLOWUP_BORDER = 1;
 
-const IMG_CANVAS_SCALE = 2;
-const ROOM_COLOR = "rgb(57,123,231)";
-const EXIT_COLOR = "rgb(255,255,255)";
+const ROOM_COLOR = "rgb(57,123,231)"; //must be rgb
+const EXIT_COLOR = "rgb(255,255,255)"; //must be rgb
+const EXIT_BORDER_COLOR = "rgb(0,0,0)"; //must be rgb
 const DUNGEON_BORDER_COLOR = "dimgray";
-const SPEC_BLOWUP_ALPHA = 0.9;
-const USELESS_TILE_OPACITY = 67; //%
+const POPUP_SPLIT_BORDER_COLOR = "cyan";
+const POPUP_WINDOW_ALPHA = 0.9;
+const SUPERWIN_ROWS = 8;
+const SUPERWIN_COLS = 7;
 
 //Dungeon level select
 document.write("<table id='dungeons' class='noselect' style='border-spacing:0px; position:absolute; top:0px; left:0px; height:"+(DUNGEON_WINDOW_WIDTH*13)+"px; width:"+(DUNGEON_WINDOW_WIDTH+DUNGEON_SCRATCH_WIDTH)+"px'>");
 	for (var j = 0; j < 13; j++) {
-		document.write("<tr id='dungrow"+j+"' class='dungeontext' style='box-shadow:inset -1px -1px 0px 0px "+DUNGEON_BORDER_COLOR+"'>");
-			document.write("<td id='dung"+j+"' class='noselect' style='vertical-align:bottom; text-align:right; direction:rtl; padding-right:2px; font-size:12px; background-image:url(\"images/dung"+j+".png\"); background-size:100% 100%; width:"+DUNGEON_WINDOW_WIDTH+"px; height:"+DUNGEON_WINDOW_WIDTH+"px'></td>");
-			document.write("<td id='scratch"+j+"' class='noselect' style='vertical-align:bottom; text-align:right; direction:rtl; padding-right:2px; font-size:12px; width:"+DUNGEON_SCRATCH_WIDTH+"px; height:"+DUNGEON_WINDOW_WIDTH+"px'></td>");
+		document.write("<tr id='dungrow"+j+"' class='noselect' style='box-sizing:border-box; border-bottom:1px solid "+DUNGEON_BORDER_COLOR+"; border-right:1px solid "+DUNGEON_BORDER_COLOR+"; position:absolute; top:"+(DUNGEON_WINDOW_WIDTH*j)+"px; left:0px; height:"+DUNGEON_WINDOW_WIDTH+"px; width:"+(DUNGEON_WINDOW_WIDTH+DUNGEON_SCRATCH_WIDTH)+"px'>");
+			document.write("<td id='dung"+j+"' class='noselect' style='display:flex; align-items:flex-end; justify-content:flex-end; background-size:100% 100%; padding:0px; position:absolute; top:0px; left:0px; height:"+DUNGEON_WINDOW_WIDTH+"px; width:"+DUNGEON_WINDOW_WIDTH+"px'>");
+				document.write("<div class='dungeontext' style='font-size:12px; padding-right:2px'>"+DUNG_ABBREV[j]+"</div>");
+			document.write("</td>");
+			document.write("<td id='scratch"+j+"' class='noselect' style='padding:0px; position:absolute; top:0px; left:"+DUNGEON_WINDOW_WIDTH+"px; height:"+DUNGEON_WINDOW_WIDTH+"px; width:"+DUNGEON_SCRATCH_WIDTH+"px'></td>");
 		document.write("</tr>");
-		document.getElementById("dung"+j).innerHTML = DUNG_ABBREV[j];
 	}
 document.write("</table>");
-document.getElementById("dungrow0").style.backgroundColor = DUNGEON_HIGHLIGHT
-
-/*
-//Dungeon scratch space
-document.write("<table id='scratch' class='noselect' style='box-shadow:inset 0px 0px 0px 1px dimgray; border-spacing:0px; position:absolute; top:0px; left:"+DUNGEON_WINDOW_WIDTH+"px; height:"+(DUNGEON_WINDOW_WIDTH*13)+"px; width:"+DUNGEON_SCRATCH_WIDTH+"px'>");
-	for (var j = 0; j < 13; j++) {
-		document.write("<tr class='dungeontext'><td id='scratch"+j+"' class='noselect' style='vertical-align:bottom; text-align:right; direction:rtl; padding-right:2px; font-size:12px; width:"+DUNGEON_SCRATCH_WIDTH+"px; height:"+DUNGEON_WINDOW_WIDTH+"px'>");
-		document.write("</td></tr>");
-	}
-document.write("</table>");*/
+document.getElementById("dungrow0").style.backgroundColor = DUNGEON_HIGHLIGHT;
 
 //Room tracker
-document.write("<table id='mapper' class='noselect' style='background-image:url(\"images/mapper.png\"); background-size:100% 100%; border-spacing:"+ROOM_PADDING+"px; position:absolute; top:"+MAP_OFFSET_Y+"px; left:"+(DUNGEON_WINDOW_WIDTH+DUNGEON_SCRATCH_WIDTH)+"px; height:"+MAP_SIZE+"px; width:"+MAP_SIZE+"px'>");
-for (var j = 0; j < ROOM_NUM; j++) {
-	if (j % NUM_MAP_COLUMNS === 0) document.write("<tr class='noselect'>");
-		document.write("<td id='room"+j+"' class='noselect' style='opacity:0; background-size:100% 100%; background-color:"+ROOM_COLOR+"; position:relative; width:"+ROOM_SIZE+"px; height:"+ROOM_SIZE+"px'>");
-			for (var i = 0; i < EXIT_NUM; i++) {
-				document.write("<div id='exit"+j+"_"+i+"' class='noselect' style='box-shadow:inset 0px 0px 0px 1px black; background-size:100% 100%; background-color:"+EXIT_COLOR+"; position:absolute; height:"+EXIT_SIZE+"px; width:"+EXIT_SIZE+"px'></div>");
-				exitcoord = translateExitPos(i);
-				document.getElementById("exit"+j+"_"+i).style.left = exitcoord.x+"px";
-				document.getElementById("exit"+j+"_"+i).style.top = exitcoord.y+"px";
-			}
+document.write("<table id='mapper' class='noselect' style='background-image:url(\"images/mapper.png\"); background-size:100% 100%; border-spacing:0px; position:absolute; top:"+MAP_OFFSET_Y+"px; left:"+(DUNGEON_WINDOW_WIDTH+DUNGEON_SCRATCH_WIDTH)+"px; height:"+MAP_SIZE+"px; width:"+MAP_SIZE+"px'><tr class='noselect'>");
+	for (var j = 0; j < ROOM_NUM; j++) {
+		document.write("<td id='room"+j+"' class='noselect' style='background-size:100% 100%; padding:0px; position:absolute; top:"+calcRoomCoord(j).y+"px; left:"+calcRoomCoord(j).x+"px; height:"+ROOM_SIZE+"px; width:"+ROOM_SIZE+"px'>");
+			document.write("<div id='room"+j+"_opa' class='noselect' style='position:absolute; top:0px; left:0px; height:"+ROOM_SIZE+"px; width:"+ROOM_SIZE+"px'></div>");
+			for (var i = EXIT_NUM - 1; i >= 0; i--)
+				document.write("<div id='exit"+j+"_"+i+"' class='noselect' style='outline:"+EXIT_BORDER_WIDTH+"px solid black; outline-offset:-"+EXIT_BORDER_WIDTH+"px; background-position:center; background-repeat:no-repeat; background-size:"+(EXIT_SIZE-2*EXIT_BORDER_WIDTH)+"px "+(EXIT_SIZE-2*EXIT_BORDER_WIDTH)+"px; margin-top:"+(-EXIT_SIZE/2)+"px; margin-left:"+(-EXIT_SIZE/2)+"px; position:absolute; top:"+translateExitPos(i).y+"px; left:"+translateExitPos(i).x+"px; height:"+EXIT_SIZE+"px; width:"+EXIT_SIZE+"px'></div>");
 		document.write("</td>");
-	if ((j+1) % NUM_MAP_COLUMNS === 0) document.write("</tr>");
-}
-document.write("</table>");
+	}
+document.write("</tr></table>");
 
 //right side special icons
-document.write("<table id='special' class='noselect' style='border-spacing:0px; position:absolute; top:0px; left:"+(DUNGEON_WINDOW_WIDTH+DUNGEON_SCRATCH_WIDTH+MAP_SIZE)+"px; height:"+(DUNGEON_WINDOW_WIDTH*13)+"px; width:"+DUNGEON_WINDOW_WIDTH+"px'>");
+document.write("<table id='special' class='noselect' style='border-spacing:0px; position:absolute; top:0px; left:"+(DUNGEON_WINDOW_WIDTH+DUNGEON_SCRATCH_WIDTH+MAP_SIZE)+"px; height:"+(DUNGEON_WINDOW_WIDTH*13)+"px; width:"+DUNGEON_WINDOW_WIDTH+"px'><tr class='noselect'>");
 	for (var j = 0; j < 13; j++) {
-		document.write("<tr class='dungeontext'><td id='spec"+j+"' class='noselect' style='vertical-align:bottom; text-align:right; direction:rtl; padding-right:2px; font-size:12px; background-image:url(\"images/"+specData[j].rooms[0].img+".png\"); background-size:100% 100%; width:"+DUNGEON_WINDOW_WIDTH+"px; height:"+DUNGEON_WINDOW_WIDTH+"px'>");
-		document.write("</td></tr>");
-		document.getElementById("spec"+j).innerHTML = SPEC_TEXT[j];
+		document.write("<td id='spec"+j+"' class='noselect' style='display:flex; align-items:flex-end; justify-content:flex-end; background-image:url(\"images/"+specData[j].rooms[0].img+".png\"); background-size:100% 100%; padding:0px; position:absolute; top:"+(DUNGEON_WINDOW_WIDTH*j)+"px; left:0px; height:"+DUNGEON_WINDOW_WIDTH+"px; width:"+DUNGEON_WINDOW_WIDTH+"px'>");
+			document.write("<div class='dungeontext' style='font-size:12px; direction:rtl; padding-right:2px'>"+SPEC_TEXT[j]+"</div>");
+		document.write("</td>");
 	}
-document.write("</table>");
+document.write("</tr></table>");
 
 //Icons for image placement
 var iconWinHeight = ICON_SIZE * (parseInt((ICON_NAMES.length - 1) / NUM_ICON_COLUMNS) + 1);
-document.write("<table id='iconography' class='noselect' style='border-spacing:0px; position:absolute; top:"+ICON_WIN_Y+"px; left:"+ICON_WIN_X+"px; height:"+iconWinHeight+"px; width:"+ICON_SIZE*NUM_ICON_COLUMNS+"px'>");
-for (var j = 0; j < ICON_NAMES.length; j++) {
-	if (j % NUM_ICON_COLUMNS === 0) document.write("<tr class='noselect'>");
-		document.write("<td id='icon"+j+"' class='noselect' style='background-image:url(\"images/"+ICON_NAMES[j]+".png\"); background-size:100% 100%; position:relative'></td>");
-	if ((j+1) % NUM_ICON_COLUMNS === 0) document.write("</tr>");
-}
-document.write("</table>");
+document.write("<table id='iconography' class='noselect' style='border-spacing:0px; position:absolute; top:"+ICON_WIN_Y+"px; left:"+ICON_WIN_X+"px; height:"+iconWinHeight+"px; width:"+ICON_SIZE*NUM_ICON_COLUMNS+"px'><tr class='noselect'>");
+	for (var j = 0; j < ICON_NAMES.length; j++)
+		document.write("<td id='icon"+j+"' class='noselect' style='background-image:url(\"images/"+ICON_NAMES[j]+".png\"); background-size:100% 100%; padding:0px; position:absolute; left:"+((j%NUM_ICON_COLUMNS)*ICON_SIZE)+"px; top:"+(parseInt(j/NUM_ICON_COLUMNS)*ICON_SIZE)+"px; height:"+ICON_SIZE+"px; width:"+ICON_SIZE+"px'></td>");
+document.write("</tr></table>");
 
 //Canvas size to fill entire window
 var canvasWidth = Math.max(DUNGEON_WINDOW_WIDTH + DUNGEON_SCRATCH_WIDTH + MAP_SIZE + DUNGEON_WINDOW_WIDTH, ICON_SIZE * NUM_ICON_COLUMNS);
 var canvasHeight = ICON_WIN_Y + iconWinHeight;
 
-//Canvas for static images
-document.write("<div class='noselect' style='position:absolute; top:0px; left:0px'>");
-	document.write("<canvas id='imgCanvas' width='"+canvasWidth*IMG_CANVAS_SCALE+"px' height='"+canvasHeight*IMG_CANVAS_SCALE+"px' style='width:"+canvasWidth+"px; height:"+canvasHeight+"px'></canvas>");
+//z-index 1: free-standing icon images
+//z-index 2: icon circles
+document.write("<div id='easel' class='noselect' style='position:absolute; width:"+(DUNGEON_SCRATCH_WIDTH+MAP_SIZE)+"px; height:"+(DUNGEON_WINDOW_WIDTH*13)+"px; top:0px; left:"+DUNGEON_WINDOW_WIDTH+"px; z-index:1'>");
 document.write("</div>");
 
+//z-index 2: static lines
+document.write("<div class='noselect' style='position:absolute; top:0px; left:0px; z-index:2'>");
+	document.write("<canvas id='staticCanvas' width='"+canvasWidth+"px' height='"+canvasHeight+"px'></canvas>");
+document.write("</div>");
+
+//Indicators
+document.write("<div id='ind_chests' class='visibletext' style='display:flex; align-items:flex-end; justify-content:flex-end; padding:0px; font-size:12px; background-image:url(\"images/chest.png\"); background-size:"+FREEIMG_SIZE+"px "+FREEIMG_SIZE+"px; background-position:center; background-repeat:no-repeat; position:absolute; top:4px; left:"+(DUNGEON_WINDOW_WIDTH+DUNGEON_SCRATCH_WIDTH+4)+"px; height:"+FREEIMG_SIZE+"px; width:"+FREEIMG_SIZE+"px; z-index:2'></div>");
+document.write("<div id='ind_keys' class='visibletext' style='display:flex; align-items:flex-end; justify-content:flex-end; padding:0px; font-size:12px; background-image:url(\"images/ditems_sk.png\"); background-size:"+FREEIMG_SIZE+"px "+FREEIMG_SIZE+"px; background-position:center; background-repeat:no-repeat; position:absolute; top:4px; left:"+(DUNGEON_WINDOW_WIDTH+DUNGEON_SCRATCH_WIDTH+4+FREEIMG_SIZE+4)+"px; height:"+FREEIMG_SIZE+"px; width:"+FREEIMG_SIZE+"px; z-index:2'></div>");
+
+//z-index 3
 //Canvas for drawing dynamic lines
-document.write("<div class='noselect' style='position:absolute; top:0px; left:0px; cursor:inherit; z-index:1'>");
+document.write("<div class='noselect' style='position:absolute; top:0px; left:0px; cursor:inherit; z-index:3'>");
 	document.write("<canvas id='myCanvas' width='"+canvasWidth+"px' height='"+canvasHeight+"px'></canvas>");
 document.write("</div>");
 document.getElementById("myCanvas").addEventListener("mousedown", trackerClick);
@@ -123,11 +119,20 @@ document.getElementById("myCanvas").addEventListener("mousemove", canvasMove); /
 document.getElementById("myCanvas").addEventListener("mouseup", trackerRelease);
 document.getElementById("myCanvas").addEventListener("wheel", mouseWheel);
 
+//z-index 4
 //Invisible elements for catching mouse events
-document.write("<table id='i_dungeons' class='noselect' style='border-spacing:0px; position:absolute; top:0px; left:0px; height:"+(DUNGEON_WINDOW_WIDTH*13)+"px; width:"+DUNGEON_WINDOW_WIDTH+"px; cursor:inherit; z-index:2'>");
+
+var clone = document.getElementById("dungeons").style;
+document.write("<table id='i_dungeons' class='noselect' style='border-spacing:0px; position:absolute; top:"+clone.top+"; left:"+clone.left+"; height:"+clone.height+"; width:"+clone.width+"; cursor:inherit; z-index:4'>");
 	for (var j = 0; j < 13; j++) {
-		document.write("<tr class='noselect style='cursor:inherit'><td id='i_dung"+j+"' class='noselect' style='width:"+DUNGEON_WINDOW_WIDTH+"px; height:"+DUNGEON_WINDOW_WIDTH+"px; cursor:inherit'>");
-		document.write("</td></tr>");
+		var clonej = document.getElementById("dungrow"+j).style;
+		document.write("<tr id='i_dungrow"+j+"' class='noselect' style='display:flex; align-items:flex-end; justify-content:flex-end; position:absolute; top:"+clonej.top+"; left:"+clonej.left+"; height:"+clonej.height+"; width:"+clonej.width+"; cursor:inherit'>");
+			document.write("<td id='i_scratchtxt"+j+"' class='visibletext' style='font-size:12px; direction:rtl; padding-right:2px'></td>");
+			var clonej = document.getElementById("dung"+j).style;
+			document.write("<td id='i_dung"+j+"' class='noselect' style='padding:0px; position:absolute; top:"+clonej.top+"; left:"+clonej.left+"; height:"+clonej.height+"; width:"+clonej.width+"; cursor:inherit'></td>");
+			var clonej = document.getElementById("scratch"+j).style;
+			document.write("<td id='i_scratch"+j+"' class='noselect' style='padding:0px; position:absolute; top:"+clonej.top+"; left:"+clonej.left+"; height:"+clonej.height+"; width:"+clonej.width+"; cursor:inherit'>");
+		document.write("</tr>");
 	}
 document.write("</table>");
 document.getElementById("i_dungeons").addEventListener("mousedown", trackerClick);
@@ -135,93 +140,136 @@ document.getElementById("i_dungeons").addEventListener("mousemove", canvasMove);
 document.getElementById("i_dungeons").addEventListener("mouseup", trackerRelease);
 document.getElementById("i_dungeons").addEventListener("wheel", mouseWheel);
 
-document.write("<table id='i_scratch' class='noselect' style='border-spacing:0px; position:absolute; top:0px; left:"+DUNGEON_WINDOW_WIDTH+"px; height:"+(DUNGEON_WINDOW_WIDTH*13)+"px; width:"+DUNGEON_SCRATCH_WIDTH+"px; cursor:inherit; z-index:2'>");
-	for (var j = 0; j < 13; j++) {
-		document.write("<tr class='visibletext' style='cursor:inherit'><td id='i_scratch"+j+"' class='noselect' style='vertical-align:bottom; text-align:right; direction:rtl; padding-right:3px; font-size:12px; width:"+DUNGEON_SCRATCH_WIDTH+"px; height:"+DUNGEON_WINDOW_WIDTH+"px; cursor:inherit'>");
-		document.write("</td></tr>");
-		updateDungeonCounterText(j);
-	}
-document.write("</table>");
-document.getElementById("i_scratch").addEventListener("mousedown", trackerClick);
-document.getElementById("i_scratch").addEventListener("mousemove", canvasMove); //update dynamic lines when moving
-document.getElementById("i_scratch").addEventListener("mouseup", trackerRelease);
-document.getElementById("i_scratch").addEventListener("wheel", mouseWheel);
-
-document.write("<table id='i_mapper' class='noselect' style='border-spacing:"+ROOM_PADDING+"px; position:absolute; top:"+MAP_OFFSET_Y+"px; left:"+(DUNGEON_WINDOW_WIDTH+DUNGEON_SCRATCH_WIDTH)+"px; height:"+MAP_SIZE+"px; width:"+MAP_SIZE+"px; cursor:inherit; z-index:2'>");
-for (var j = 0; j < ROOM_NUM; j++) {
-	if (j % NUM_MAP_COLUMNS === 0) document.write("<tr class='noselect' style='cursor:inherit'>");
-		document.write("<td id='i_room"+j+"' class='noselect' style='position:relative; width:"+ROOM_SIZE+"px; height:"+ROOM_SIZE+"px; cursor:inherit'>");
-			for (var i = 0; i < EXIT_NUM; i++) {
-				document.write("<div id='i_exit"+j+"_"+i+"' class='noselect' style='position:absolute; height:"+EXIT_SIZE+"px; width:"+EXIT_SIZE+"px; cursor:inherit'></div>");
-				exitcoord = translateExitPos(i);
-				document.getElementById("i_exit"+j+"_"+i).style.left = exitcoord.x+"px";
-				document.getElementById("i_exit"+j+"_"+i).style.top = exitcoord.y+"px";
+var clone = document.getElementById("mapper").style;
+document.write("<table id='i_mapper' class='noselect' style='border-spacing:0px; position:absolute; top:"+clone.top+"; left:"+clone.left+"; height:"+clone.height+"; width:"+clone.width+"; cursor:inherit; z-index:4'><tbody id='i_mapper_body' style='cursor:inherit'><tr class='noselect' style='cursor:inherit'>");
+	for (var j = 0; j < ROOM_NUM; j++) {
+		var clonej = document.getElementById("room"+j).style;
+		document.write("<td id='i_room"+j+"' class='noselect' style='padding:0px; position:absolute; top:"+clonej.top+"; left:"+clonej.left+"; height:"+clonej.height+"; width:"+clonej.width+"; cursor:inherit'>");
+			for (var i = EXIT_NUM - 1; i >= 0; i--) {
+				var clonei = document.getElementById("exit"+j+"_"+i).style;
+				document.write("<div id='i_exit"+j+"_"+i+"' class='noselect' style='margin-top:"+clonei.marginTop+"; margin-left:"+clonei.marginLeft+"; position:absolute; top:"+clonei.top+"; left:"+clonei.left+"; height:"+clonei.height+"; width:"+clonei.width+"; cursor:inherit'></div>");
 			}
 		document.write("</td>");
 		document.getElementById("i_room"+j).addEventListener("mouseover", roomVisible);
 		document.getElementById("i_room"+j).addEventListener("mouseout", roomVisible);
-	if ((j+1) % NUM_MAP_COLUMNS === 0) document.write("</tr>");
-}
-document.write("</table>");
+	}
+document.write("</tbody></tr></table>");
 document.getElementById("i_mapper").addEventListener("mousedown", trackerClick);
 document.getElementById("i_mapper").addEventListener("mousemove", canvasMove); //update dynamic lines when moving
 document.getElementById("i_mapper").addEventListener("mouseup", trackerRelease);
 document.getElementById("i_mapper").addEventListener("wheel", mouseWheel);
 
-document.write("<table id='i_special' class='noselect' style='border-spacing:0px; position:absolute; top:0px; left:"+(DUNGEON_WINDOW_WIDTH+DUNGEON_SCRATCH_WIDTH+MAP_SIZE)+"px; height:"+(DUNGEON_WINDOW_WIDTH*13)+"px; width:"+DUNGEON_WINDOW_WIDTH+"px; cursor:inherit; z-index:2'>");
+var clone = document.getElementById("special").style;
+document.write("<table id='i_special' class='noselect' style='border-spacing:0px; position:absolute; top:"+clone.top+"; left:"+clone.left+"; height:"+clone.height+"; width:"+clone.width+"; cursor:inherit; z-index:4'><tr class='noselect style='cursor:inherit'>");
 	for (var j = 0; j < 13; j++) {
-		document.write("<tr class='noselect style='cursor:inherit'><td id='i_spec"+j+"' class='noselect' style='width:"+DUNGEON_WINDOW_WIDTH+"px; height:"+DUNGEON_WINDOW_WIDTH+"px; cursor:inherit'>");
-		document.write("</td></tr>");
+		var clonej = document.getElementById("spec"+j).style;
+		document.write("<td id='i_spec"+j+"' class='noselect' style='padding:0px; position:absolute; top:"+clonej.top+"; left:"+clonej.left+"; height:"+clonej.height+"; width:"+clonej.width+"; cursor:inherit'></td>");
 	}
-document.write("</table>");
+document.write("</tr></table>");
 document.getElementById("i_special").addEventListener("mousedown", trackerClick);
 document.getElementById("i_special").addEventListener("mousemove", canvasMove); //update dynamic lines when moving
 document.getElementById("i_special").addEventListener("mouseup", trackerRelease);
 document.getElementById("i_special").addEventListener("wheel", mouseWheel);
 
-document.write("<table id='i_iconography' class='noselect' style='border-spacing:0px; position:absolute; top:"+ICON_WIN_Y+"px; left:"+ICON_WIN_X+"px; height:"+iconWinHeight+"px; width:"+ICON_SIZE*NUM_ICON_COLUMNS+"px; cursor:inherit; z-index:2'>");
-for (var j = 0; j < ICON_NAMES.length; j++) {
-	if (j % NUM_ICON_COLUMNS === 0) document.write("<tr class='noselect' style='cursor:inherit'>");
-		document.write("<td id='i_icon"+j+"' class='noselect' style='position:relative; cursor:inherit'></td>");
-	if ((j+1) % NUM_ICON_COLUMNS === 0) document.write("</tr>");
-}
-document.write("</table>");
+var clone = document.getElementById("iconography").style;
+document.write("<table id='i_iconography' class='noselect' style='border-spacing:0px; position:absolute; top:"+clone.top+"; left:"+clone.left+"; height:"+clone.height+"; width:"+clone.width+"; cursor:inherit; z-index:4'><tr class='noselect' style='cursor:inherit'>");
+	for (var j = 0; j < ICON_NAMES.length; j++) {
+		var clonej = document.getElementById("icon"+j).style;
+		document.write("<td id='i_icon"+j+"' class='noselect' style='padding:0px; position:absolute; top:"+clonej.top+"; left:"+clonej.left+"; height:"+clonej.height+"; width:"+clonej.width+"; cursor:inherit'></td>");
+	}
+document.write("</tr></table>");
 document.getElementById("i_iconography").addEventListener("mousedown", trackerClick);
 document.getElementById("i_iconography").addEventListener("mousemove", canvasMove); //update dynamic lines when moving
 document.getElementById("i_iconography").addEventListener("mouseup", trackerRelease);
 document.getElementById("i_iconography").addEventListener("wheel", mouseWheel);
 
+//z-index 10: popup windows
 //Popup overlays for tile selection
 for (var j = 0; j < specData.length; j++) {
 	if (specData[j].popup === true) {
 		var topPos = j*DUNGEON_WINDOW_WIDTH;
 		var leftPos = DUNGEON_WINDOW_WIDTH + DUNGEON_SCRATCH_WIDTH + MAP_SIZE - SPEC_BLOWUP_PADDING - specData[j].x * (SPEC_BLOWUP_SIZE+SPEC_BLOWUP_PADDING) - SPEC_BLOWUP_BORDER*2;
-		var width = specData[j].x * (SPEC_BLOWUP_SIZE+SPEC_BLOWUP_PADDING) + SPEC_BLOWUP_PADDING + SPEC_BLOWUP_BORDER*2;
 		var height = specData[j].y * (SPEC_BLOWUP_SIZE+SPEC_BLOWUP_PADDING) + SPEC_BLOWUP_PADDING + SPEC_BLOWUP_BORDER*2;
+		var width = specData[j].x * (SPEC_BLOWUP_SIZE+SPEC_BLOWUP_PADDING) + SPEC_BLOWUP_PADDING + SPEC_BLOWUP_BORDER*2;
 		if (topPos + height > ICON_WIN_Y + ICON_SIZE * (parseInt((ICON_NAMES.length-1) / NUM_ICON_COLUMNS)+1))
 			topPos = (ICON_WIN_Y + ICON_SIZE * (parseInt((ICON_NAMES.length-1) / NUM_ICON_COLUMNS)+1)) - height;
-		document.write("<table id='specpop"+j+"' class='noselect' style='padding:0px; background-color:rgba(0,0,0,"+SPEC_BLOWUP_ALPHA+"); display:none; border:"+SPEC_BLOWUP_BORDER+"px solid; border-spacing:"+SPEC_BLOWUP_PADDING+"px; position:absolute; top:"+topPos+"px; left:"+leftPos+"px; height:"+height+"px; width:"+width+"px; cursor:inherit; z-index:3'>");
-			document.write("<tr class='dungeontext' style='cursor:inherit'>");
-				for (var i = 0; i < specData[j].rooms.length; i++) {
-					var x = specData[j].rooms[i].x * (SPEC_BLOWUP_SIZE+SPEC_BLOWUP_PADDING) + SPEC_BLOWUP_PADDING;
-					var y = specData[j].rooms[i].y * (SPEC_BLOWUP_SIZE+SPEC_BLOWUP_PADDING) + SPEC_BLOWUP_PADDING;
-					var opacity = (specData[j].rooms[i].high === true ? 100 : USELESS_TILE_OPACITY);
-					document.write("<td id='specpop"+j+"_"+i+"' class='noselect' style='filter:brightness("+opacity+"%); padding:0px; background-image:url(\"images/"+specData[j].rooms[i].img+".png\"); background-size:100% 100%; position:absolute; width:"+SPEC_BLOWUP_SIZE+"px; height:"+SPEC_BLOWUP_SIZE+"px; top:"+y+"px; left:"+x+"px; cursor:inherit'></td>");
+		document.write("<table id='specpop"+j+"' class='noselect' style='display:none; padding:0px; background-color:rgba(0,0,0,"+POPUP_WINDOW_ALPHA+"); border:"+SPEC_BLOWUP_BORDER+"px solid; border-spacing:"+SPEC_BLOWUP_PADDING+"px; position:absolute; top:"+topPos+"px; left:"+leftPos+"px; height:"+height+"px; width:"+width+"px; cursor:inherit; z-index:10'><tr class='noselect' style='cursor:inherit'>");
+			for (var i = 0; i < specData[j].rooms.length; i++) {
+				var x = specData[j].rooms[i].x * SPEC_BLOWUP_SIZE + parseInt(specData[j].rooms[i].x) * SPEC_BLOWUP_PADDING + SPEC_BLOWUP_PADDING;
+				var y = specData[j].rooms[i].y * SPEC_BLOWUP_SIZE + parseInt(specData[j].rooms[i].y) * SPEC_BLOWUP_PADDING + SPEC_BLOWUP_PADDING;
+				var height = (specData[j].rooms[i].half === true ? SPEC_BLOWUP_SIZE / 2 : SPEC_BLOWUP_SIZE);
+				var width = (specData[j].rooms[i].vhalf === true ? SPEC_BLOWUP_SIZE / 2 : SPEC_BLOWUP_SIZE);
+				var backgroundSize = (specData[j].rooms[i].vhalf === true ? SPEC_BLOWUP_SIZE+"px" : "100%") + " " + (specData[j].rooms[i].half === true ? SPEC_BLOWUP_SIZE+"px" : "100%");
+				document.write("<td id='specpop"+j+"_"+i+"' class='noselect' style='padding:0px; box-sizing:border-box; background-image:url(\"images/"+specData[j].rooms[i].img+".png\"); background-size:"+backgroundSize+"; position:absolute; width:"+width+"px; height:"+height+"px; top:"+y+"px; left:"+x+"px; cursor:inherit'></td>");
+
+				var elStyle = document.getElementById("specpop"+j+"_"+i).style
+				var borderStyle = "1px solid "+POPUP_SPLIT_BORDER_COLOR;
+				if (specData[j].rooms[i].half === true) {
+					if (specData[j].rooms[i].y % 1 <= 0.4) {
+						elStyle.borderBottom = borderStyle;
+						elStyle.backgroundPosition = "top";
+					} else {
+						elStyle.borderTop = borderStyle;
+						elStyle.backgroundPosition = "bottom";
+					}
 				}
-			document.write("</tr>");
-		document.write("</table>");
+				if (specData[j].rooms[i].vhalf === true) {
+					if (specData[j].rooms[i].x % 1 <= 0.4) {
+						elStyle.borderRight = borderStyle;
+						elStyle.backgroundPosition = "left";
+					} else {
+						elStyle.borderLeft = borderStyle;
+						elStyle.backgroundPosition = "right";
+					}
+				}
+
+				document.write("<td id='specpop"+j+"_"+i+"_opa' class='noselect' style='padding:0px; outline-offset:-"+POPUP_HIGHLIGHT_BORDER_WIDTH+"px; position:absolute; width:"+width+"px; height:"+height+"px; top:"+y+"px; left:"+x+"px; cursor:inherit'></td>");
+				document.getElementById("specpop"+j+"_"+i+"_opa").addEventListener("mouseover", popupHighlight);
+				document.getElementById("specpop"+j+"_"+i+"_opa").addEventListener("mouseout", popupHighlight);
+			}
+		document.write("</tr></table>");
 		document.getElementById("specpop"+j).addEventListener("wheel", mouseWheel);
 		document.getElementById("specpop"+j).addEventListener("mousedown", trackerClick);
 	}
 }
 
-//Chest Counter
-document.write("<div id='chests' class='dungeontext' style='vertical-align:bottom; text-align:left; padding-left:2px; font-size:12px; position:absolute; top:10px; left:88px;'>");
-document.write("</div>");
-document.getElementById("chests").innerHTML = "";
+//Popup window of all branching supertiles
+var supercellSize = Math.min(parseInt((canvasWidth-10)/SUPERWIN_COLS), parseInt((canvasHeight-10)/SUPERWIN_ROWS));
+document.write("<table id='superpop' class='noselect' style='display:none; padding:0px; background-color:rgba(0,0,0,"+POPUP_WINDOW_ALPHA+"); border:"+SPEC_BLOWUP_BORDER+"px solid; border-spacing:0px; position:absolute; top:10px; left:10px; height:"+(supercellSize*8+SPEC_BLOWUP_BORDER*2)+"px; width:"+(supercellSize*7+SPEC_BLOWUP_BORDER*2)+"px; cursor:inherit; z-index:10'><tr class='dungeontext' style='cursor:inherit'>");
+	for (var i = 0; i < superData.length; i++) {
+		var roomData = specData[superData[i].dungeon].rooms[superData[i].room];
+		var x = supercellSize * superData[i].x;
+		var y = supercellSize * superData[i].y;
+		var height = (roomData.half === true ? supercellSize / 2 : supercellSize);
+		var img = roomData.img;
+		var backgroundSize = (roomData.half === true ? "100% "+supercellSize+"px" : "100% 100%");
+		document.write("<td id='superpop"+i+"' class='noselect' style='box-sizing:border-box; display:flex; align-items:center; justify-content:center; padding:0px; background-image:url(\"images/"+img+".png\"); background-size:"+backgroundSize+"; position:absolute; top:"+y+"px; left:"+x+"px; height:"+height+"px; width:"+supercellSize+"px; cursor:inherit'></td>");
+
+		var el = document.getElementById("superpop"+i);
+		var borderStyle = "1px solid "+POPUP_SPLIT_BORDER_COLOR;
+		if (roomData.half === true) {
+			if (roomData.y % 1 <= 0.4) {
+				el.style.borderBottom = borderStyle;
+				el.style.backgroundPosition = "top";
+			} else {
+				el.style.borderTop = borderStyle;
+				el.style.backgroundPosition = "bottom";
+			}
+		}
+		if (superData[i].text !== undefined) {
+			el.innerHTML = superData[i].text;
+		}
+
+		document.write("<td id='i_superpop"+i+"' class='noselect' style='outline-offset:-"+POPUP_HIGHLIGHT_BORDER_WIDTH+"px; box-sizing:border-box; padding:0px; position:absolute; top:"+y+"px; left:"+x+"px; height:"+height+"px; width:"+supercellSize+"px; cursor:inherit'></td>");
+		document.getElementById("i_superpop"+i).addEventListener("mouseover", popupHighlight);
+		document.getElementById("i_superpop"+i).addEventListener("mouseout", popupHighlight);
+	}
+document.write("</tr></table>");
+document.getElementById("superpop").addEventListener("wheel", mouseWheel);
+document.getElementById("superpop").addEventListener("mousedown", trackerClick);
 
 //Options window
-document.write("<div id='options' class='dungeontext' style='display:none; background:rgba(0,0,0,0.75); position:absolute; left:10px; top:10px; width:"+(canvasWidth-20)+"px; height:"+(canvasHeight-20)+"px; z-index:10'>");
+document.write("<div id='options' class='dungeontext' style='display:none; background:rgba(0,0,0,0.85); position:absolute; left:10px; top:10px; width:"+(canvasWidth-20)+"px; height:"+(canvasHeight-20)+"px; z-index:20'>");
 	document.write("<div style='position:absolute; top:10px; left:10px; height:"+(canvasHeight-40)+"px; width:"+(canvasWidth-40)+"px; border:2px solid white'>");
 		document.write("<h4 style='margin-top:-10px; margin-left:10px; background:black; padding:0px 5px; width:65px'>Options</h4>");
 		document.write("&ensp;Key Drop Shuffle:");
@@ -234,30 +282,41 @@ document.write("<div id='options' class='dungeontext' style='display:none; backg
 		document.write("<label for='on' style='position:absolute; left:220px'>On</label>");
 		document.write("<input type='radio' id='opt_lobby_off' name='lobby' value='off' style='position:absolute; left:250px'>");
 		document.write("<label for='off' style='position:absolute; left:270px'>Off</label><br><br>");
+		document.write("&ensp;Allow multiple connections per exit:");
+		document.write("<input type='radio' id='opt_multiConn_enable' name='optmultConn' value='on' style='position:absolute; left:350px'>");
+		document.write("<label for='on' style='position:absolute; left:370px'>On</label>");
+		document.write("<input type='radio' id='opt_multiConn_disable' checked name='optmultConn' value='off' style='position:absolute; left:400px'>");
+		document.write("<label for='off' style='position:absolute; left:420px'>Off</label><br><br>");
 		document.write("&ensp;Show chest counter for all dungeons:");
-		document.write("<input type='radio' id='opt_counter_on' name='counter' value='on' style='position:absolute; left:300px'>");
-		document.write("<label for='on' style='position:absolute; left:320px'>On</label>");
-		document.write("<input type='radio' id='opt_counter_off' checked name='counter' value='off' style='position:absolute; left:350px'>");
-		document.write("<label for='off' style='position:absolute; left:370px'>Off</label><br><br>");
+		document.write("<input type='radio' id='opt_counter_on' name='counter' value='on' style='position:absolute; left:350px'>");
+		document.write("<label for='on' style='position:absolute; left:370px'>On</label>");
+		document.write("<input type='radio' id='opt_counter_off' checked name='counter' value='off' style='position:absolute; left:400px'>");
+		document.write("<label for='off' style='position:absolute; left:420px'>Off</label><br><br>");
 		document.write("&ensp;Allow exit modification on pre-defined tiles:");
 		document.write("<input type='radio' id='opt_exit_enable' checked name='optexit' value='on' style='position:absolute; left:350px'>");
 		document.write("<label for='on' style='position:absolute; left:370px'>On</label>");
 		document.write("<input type='radio' id='opt_exit_disable' name='optexit' value='off' style='position:absolute; left:400px'>");
 		document.write("<label for='off' style='position:absolute; left:420px'>Off</label><br><br>");
 		document.write("&ensp;Allow icon deletion on right clicks:");
-		document.write("<input type='radio' id='opt_eraseR_enable' name='eraseR' value='on' style='position:absolute; left:300px'>");
-		document.write("<label for='on' style='position:absolute; left:320px'>On</label>");
-		document.write("<input type='radio' id='opt_eraseR_disable' checked name='eraseR' value='off' style='position:absolute; left:350px'>");
-		document.write("<label for='off' style='position:absolute; left:370px'>Off</label><br><br>");
-		document.write("<input type='button' id='reset_button' value='Reset' onclick='button_click(this)' style='position:absolute; left:10px; top:250px'>");
-		document.write("<input type='button' id='close_button' value='Close' onclick='button_click(this)' style='position:absolute; left:70px; top:250px'>");
+		document.write("<input type='radio' id='opt_eraseR_enable' name='eraseR' value='on' style='position:absolute; left:350px'>");
+		document.write("<label for='on' style='position:absolute; left:370px'>On</label>");
+		document.write("<input type='radio' id='opt_eraseR_disable' checked name='eraseR' value='off' style='position:absolute; left:400px'>");
+		document.write("<label for='off' style='position:absolute; left:420px'>Off</label><br><br>");
+		document.write("&ensp;Enable giant supertile menu:");
+		document.write("<input type='radio' id='opt_super_enable' name='super' value='on' style='position:absolute; left:350px'>");
+		document.write("<label for='on' style='position:absolute; left:370px'>On</label>");
+		document.write("<input type='radio' id='opt_super_disable' checked name='super' value='off' style='position:absolute; left:400px'>");
+		document.write("<label for='off' style='position:absolute; left:420px'>Off</label><br><br>");
+		document.write("<input type='button' id='reset_button' value='Reset Dungeons' onclick='button_click(this)' style='position:absolute; left:10px; top:300px'>");
+		document.write("<input type='button' id='close_button' value='Close' onclick='button_click(this)' style='position:absolute; left:140px; top:300px'>");
+		document.write("<a href='https://bit.ly/37YYLLG' target='_blank' style='font-size: 24px; position:absolute; top:570px; left:10px'>User Manual</a>");
 	document.write("</div>");
 
 document.write("</div>");
 
+assignOptions();
 InitializeDungeonMaps();
-refreshVisible();
-drawImages();
+refreshAllRooms();
 </script>
 
 </body>

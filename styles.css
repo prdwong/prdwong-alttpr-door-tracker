@@ -7,6 +7,9 @@
 	user-select: none;
 }
 
+a:visited { color: blue; }
+a:active { color: red; }
+
 .dungeontext {
 	-webkit-touch-callout: none;
 	-webkit-user-select: none;

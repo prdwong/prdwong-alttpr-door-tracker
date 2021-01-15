@@ -318,17 +318,17 @@ specData.push(group);
 
 //XEPIP
 var group = {popup:true};
-group.x = 4; group.y = 4;
+group.x = 3; group.y = 4;
 group.rooms = new Array();
 //ledge
-var room = {img:"xep0", high:true};
-room.x = 2; room.y = 1;
+var room = {img:"xep0", high:true, half:true};
+room.x = 1; room.y = 1.5;
 room.exits = [5,6,10];
 room.icons = ["", "", ""];
 group.rooms.push(room);
 //compass
 var room = {img:"xep1", high:true};
-room.x = 1; room.y = 1;
+room.x = 0; room.y = 1;
 room.exits = [4,6,11];
 room.icons = ["", "", "shutter"];
 room.imgs = new Array();
@@ -336,8 +336,8 @@ room.imgs.push({img:"chest", x:16, y:8});
 room.imgs.push({img:"hint", x:48, y:8});
 group.rooms.push(room);
 //bigchest
-var room = {img:"xep2", high:true};
-room.x = 3; room.y = 0;
+var room = {img:"xep2", high:true, half:true};
+room.x = 1; room.y = 1;
 room.exits = [1,3,4];
 room.icons = ["ditems_bk", "", ""];
 room.imgs = new Array();
@@ -345,13 +345,13 @@ room.imgs.push({img:"bigchest", x:32, y:32});
 group.rooms.push(room);
 //entr
 var room = {img:"xepentr", entr:"main"};
-room.x = 2; room.y = 3;
+room.x = 1; room.y = 3;
 room.exits = [1,10];
 room.icons = ["", "entrancem"];
 group.rooms.push(room);
 //cannon
 var room = {img:"xepcannon"};
-room.x = 2; room.y = 2;
+room.x = 1; room.y = 2;
 room.exits = [1,10];
 room.icons = ["", ""];
 room.imgs = new Array();
@@ -359,7 +359,7 @@ room.imgs.push({img:"chest", x:48, y:40});
 group.rooms.push(room);
 //east
 var room = {img:"xepright"};
-room.x = 3; room.y = 1;
+room.x = 2; room.y = 1;
 room.exits = [5];
 room.icons = [""];
 room.imgs = new Array();
@@ -367,7 +367,7 @@ room.imgs.push({img:"chest", x:56, y:48});
 group.rooms.push(room);
 //dark key
 var room = {img:"xepkey"};
-room.x = 3; room.y = 2;
+room.x = 2; room.y = 2;
 room.exits = [0,3];
 room.icons = ["", ""];
 room.imgs = new Array();
@@ -376,7 +376,7 @@ room.imgs.push({img:"lantern", x:32, y:32});
 group.rooms.push(room);
 //bk
 var room = {img:"xepbk"};
-room.x = 1; room.y = 2;
+room.x = 0; room.y = 2;
 room.exits = [2,4];
 room.icons = ["ditems_bk", ""];
 room.imgs = new Array();
@@ -417,17 +417,17 @@ specData.push(group);
 
 //XDP
 var group = {popup:true};
-group.x = 4; group.y = 4;
+group.x = 4; group.y = 3;
 group.rooms = new Array();
 //LobbyM
 var room = {img:"xdp0", entr:"main", high:true};
-room.x = 2; room.y = 2;
+room.x = 2; room.y = 1;
 room.exits = [0,1,2,6,10];
 room.icons = ["", "", "", "", "entrancem"];
 group.rooms.push(room);
 //LobbyE
 var room = {img:"xdp1", entr:"east", high:true};
-room.x = 3; room.y = 2;
+room.x = 3; room.y = 1;
 room.exits = [0,2,5,11];
 room.icons = ["", "", "", "entrancee"];
 room.imgs = new Array();
@@ -435,7 +435,7 @@ room.imgs.push({img:"chest", x:48, y:16});
 group.rooms.push(room);
 //Map
 var room = {img:"xdp2", high:true};
-room.x = 2; room.y = 1;
+room.x = 2; room.y = 0;
 room.exits = [7,8,9,11];
 room.icons = ["", "", "", ""];
 room.imgs = new Array();
@@ -443,7 +443,7 @@ room.imgs.push({img:"chest", x:32, y:16});
 group.rooms.push(room);
 //Torch
 var room = {img:"xdp3"};
-room.x = 1; room.y = 1;
+room.x = 1; room.y = 0;
 room.exits = [6,11];
 room.icons = ["", ""];
 room.imgs = new Array();
@@ -454,27 +454,27 @@ room.imgs.push({img:"hint", x:48, y:0});
 group.rooms.push(room);
 //LobbyW
 var room = {img:"xdplobbyw", entr:"west"};
-room.x = 1; room.y = 2;
+room.x = 1; room.y = 1;
 room.exits = [2,9];
 room.icons = ["", "entrancew"];
 group.rooms.push(room);
 //Lobbyback
 var room = {img:"xdpback", entr:"back"};
-room.x = 0; room.y = 3;
+room.x = 0; room.y = 2;
 room.exits = [0,9];
 room.icons = ["", "entranceb"];
 room.imgs = new Array();
 room.imgs.push({img:"potkey", x:8, y:24});
 group.rooms.push(room);
 //east trap
-var room = {img:"xdptrap"};
-room.x = 3; room.y = 1;
+var room = {img:"xdptrap", vhalf:true};
+room.x = 3; room.y = 0;
 room.exits = [7,9];
 room.icons = ["", ""];
 group.rooms.push(room);
 //BK
-var room = {img:"xdpbk"};
-room.x = 3; room.y = 0;
+var room = {img:"xdpbk", vhalf:true};
+room.x = 3.5; room.y = 0;
 room.exits = [11];
 room.icons = [""];
 room.imgs = new Array();
@@ -482,7 +482,7 @@ room.imgs.push({img:"chest", x:48, y:8});
 group.rooms.push(room);
 //Popos
 var room = {img:"xdppopo"};
-room.x = 0; room.y = 2;
+room.x = 0; room.y = 1;
 room.exits = [0,2];
 room.icons = ["", ""];
 room.imgs = new Array();
@@ -491,7 +491,7 @@ room.imgs.push({img:"enemy", x:16, y:48});
 group.rooms.push(room);
 //Wall
 var room = {img:"xdpwall"};
-room.x = 0; room.y = 1;
+room.x = 0; room.y = 0;
 room.exits = [0,11];
 room.icons = ["ditems_bk", ""];
 room.imgs = new Array();
@@ -500,7 +500,7 @@ room.imgs.push({img:"potkey", x:56, y:40});
 group.rooms.push(room);
 //basement
 var room = {img:"xherabase"};
-room.x = 3; room.y = 3;
+room.x = 3; room.y = 2;
 room.exits = [0];
 room.icons = [""];
 room.imgs = new Array();
@@ -510,7 +510,7 @@ room.imgs.push({img:"torch", x:48, y:40});
 group.rooms.push(room);
 //cage
 var room = {img:"xheracage"};
-room.x = 2; room.y = 3;
+room.x = 2; room.y = 2;
 room.exits = [1];
 room.icons = [""];
 room.imgs = new Array();
@@ -1196,8 +1196,8 @@ room.exits = [0,7,9];
 room.icons = ["", "", ""];
 group.rooms.push(room);
 //entr
-var room = {img:"xtrentr", entr:"main"};
-room.x = 4; room.y = 2;
+var room = {img:"xtrentr", entr:"main", vhalf:true};
+room.x = 3.5; room.y = 2;
 room.exits = [2,11];
 room.icons = ["", "entrancem"];
 room.imgs = new Array();
@@ -1222,7 +1222,7 @@ room.imgs.push({img:"chest", x:8, y:24});
 room.imgs.push({img:"chest", x:8, y:40});
 group.rooms.push(room);
 //compass
-var room = {img:"xtrcomp"};
+var room = {img:"xtrcomp", vhalf:true};
 room.x = 3; room.y = 2;
 room.exits = [0];
 room.icons = [""];
@@ -1248,8 +1248,8 @@ room.imgs.push({img:"chest", x:8, y:16});
 room.imgs.push({img:"chest", x:24, y:16});
 group.rooms.push(room);
 //chomp
-var room = {img:"xtrchomp"};
-room.x = 2; room.y = 0;
+var room = {img:"xtrchomp", vhalf:true};
+room.x = 3; room.y = 0;
 room.exits = [0,9];
 room.icons = ["", ""];
 room.imgs = new Array();
@@ -1297,13 +1297,13 @@ group.rooms.push(room);
 var room = {img:"xtrpreboss"};
 room.x = 0; room.y = 0;
 room.exits = [0,10];
-room.icons = ["", ""];
+room.icons = ["ditems_bk", ""];
 room.imgs = new Array();
 room.imgs.push({img:"somaria", x:32, y:32});
 group.rooms.push(room);
 //trap tile
-var room = {img:"xtrtrap"};
-room.x = 3; room.y = 0;
+var room = {img:"xtrtrap", vhalf:true};
+room.x = 3.5; room.y = 0;
 room.exits = [11];
 room.icons = [""];
 group.rooms.push(room);
@@ -1370,7 +1370,7 @@ group.rooms.push(room);
 var room = {img:"xgt2", high:true};
 room.x = 3; room.y = 4;
 room.exits = [0,2,7,8];
-room.icons = ["", "", "", ""];
+room.icons = ["", "", "", "shutter"];
 group.rooms.push(room);
 //moldorm
 var room = {img:"xgt3", high:true};
@@ -1407,9 +1407,8 @@ group.rooms.push(room);
 var room = {img:"xgtcompass"};
 room.x = 4; room.y = 4;
 room.exits = [2,8];
-room.icons = ["", ""];
+room.icons = ["shutter", ""];
 room.imgs = new Array();
-room.imgs.push({img:"shutter", x:16, y:40});
 room.imgs.push({img:"xtalswitch", x:56, y:16});
 room.imgs.push({img:"chest", x:8, y:8});
 room.imgs.push({img:"chest", x:24, y:8});
@@ -1421,17 +1420,14 @@ group.rooms.push(room);
 var room = {img:"xgteasttele"};
 room.x = 4; room.y = 5;
 room.exits = [4,7];
-room.icons = ["", ""];
-room.imgs = new Array();
-room.imgs.push({img:"shutter", x:48, y:32});
+room.icons = ["shutter", ""];
 group.rooms.push(room);
 //ice armos
 var room = {img:"xgtice"};
 room.x = 3; room.y = 5;
 room.exits = [5,11];
-room.icons = ["", ""];
+room.icons = ["", "shutter"];
 room.imgs = new Array();
-room.imgs.push({img:"shutter", x:32, y:48});
 room.imgs.push({img:"chest", x:48, y:24});
 room.imgs.push({img:"chest", x:40, y:8});
 room.imgs.push({img:"chest", x:56, y:8});
@@ -1481,9 +1477,8 @@ group.rooms.push(room);
 var room = {img:"xgtlanmo"};
 room.x = 1; room.y = 1;
 room.exits = [0,8];
-room.icons = ["", ""];
+room.icons = ["", "shutter"];
 room.imgs = new Array();
-room.imgs.push({img:"shutter", x:16, y:32});
 room.imgs.push({img:"enemy", x:16, y:48});
 group.rooms.push(room);
 //wizzrobes
@@ -1530,3 +1525,61 @@ group.rooms = new Array();
 var room = {img:"delete"}; //"delete" is special value for this room to signify delete function
 group.rooms.push(room);
 specData.push(group);
+
+
+//***** Superpopup organization *****
+var superData = new Array();
+
+var room = {x:0, y:3, dungeon:0, room:0, border:"udr", text:"PoD pits"}; superData.push(room);
+var room = {x:5, y:7, dungeon:1, room:0, border:"ulr", text:"IP pits"}; superData.push(room);
+var room = {x:5, y:0, dungeon:2, room:0, border:"dlr", text:"MM pits"}; superData.push(room);
+var room = {x:1, y:1, dungeon:3, room:0, border:"d"}; superData.push(room);
+var room = {x:0, y:1, dungeon:3, room:1, border:"ud"}; superData.push(room);
+var room = {x:2, y:1, dungeon:3, room:2, border:"dr"}; superData.push(room);
+var room = {x:2, y:0, dungeon:3, room:3, border:"r"}; superData.push(room);
+var room = {x:1, y:0, dungeon:3, room:4, border:"l"}; superData.push(room);
+var room = {x:2, y:2, dungeon:3, room:5, border:"ulr"}; superData.push(room);
+var room = {x:2, y:3, dungeon:3, room:6, border:"ldr"}; superData.push(room);
+var room = {x:1, y:2, dungeon:4, room:2, border:"ur"}; superData.push(room);
+var room = {x:1, y:2.5, dungeon:4, room:0, border:"rd"}; superData.push(room);
+var room = {x:0, y:2, dungeon:4, room:1, border:"ud"}; superData.push(room);
+var room = {x:1, y:4, dungeon:5, room:0, border:"dl"}; superData.push(room);
+var room = {x:2, y:4, dungeon:5, room:1, border:"udr"}; superData.push(room);
+var room = {x:1, y:3, dungeon:5, room:2, border:"lur"}; superData.push(room);
+var room = {x:0, y:6, dungeon:6, room:0, border:"dr"}; superData.push(room);
+var room = {x:0, y:5, dungeon:6, room:1, border:""}; superData.push(room);
+var room = {x:0, y:4, dungeon:6, room:2, border:"ur"}; superData.push(room);
+var room = {x:1, y:5, dungeon:6, room:3, border:"urd"}; superData.push(room);
+var room = {x:2, y:7, dungeon:7, room:0, border:""}; superData.push(room);
+var room = {x:4, y:7, dungeon:7, room:1, border:"ur"}; superData.push(room);
+var room = {x:3, y:7, dungeon:7, room:2, border:""}; superData.push(room);
+var room = {x:1, y:7, dungeon:7, room:3, border:"u"}; superData.push(room);
+var room = {x:0, y:7, dungeon:7, room:4, border:"u"}; superData.push(room);
+var room = {x:2, y:6, dungeon:7, room:5, border:"lu"}; superData.push(room);
+var room = {x:3, y:6, dungeon:7, room:6, border:"ur"}; superData.push(room);
+var room = {x:3, y:2, dungeon:8, room:0, border:"ld"}; superData.push(room);
+var room = {x:3, y:1, dungeon:8, room:1, border:"l"}; superData.push(room);
+var room = {x:4, y:1, dungeon:8, room:2, border:"r"}; superData.push(room);
+var room = {x:4, y:2, dungeon:8, room:3, border:"rd"}; superData.push(room);
+var room = {x:4, y:0, dungeon:8, room:4, border:"r"}; superData.push(room);
+var room = {x:3, y:0, dungeon:8, room:5, border:"l"}; superData.push(room);
+var room = {x:6, y:6, dungeon:8, room:6, border:"lu"}; superData.push(room);
+var room = {x:6, y:7, dungeon:8, room:7, border:"l"}; superData.push(room);
+var room = {x:5, y:3, dungeon:9, room:0, border:"d"}; superData.push(room);
+var room = {x:4, y:3, dungeon:9, room:1, border:"dul"}; superData.push(room);
+var room = {x:6, y:3, dungeon:9, room:2, border:"d"}; superData.push(room);
+var room = {x:6, y:2, dungeon:9, room:3, border:"u"}; superData.push(room);
+var room = {x:5, y:2, dungeon:9, room:4, border:"l"}; superData.push(room);
+var room = {x:5, y:1, dungeon:9, room:5, border:"lur"}; superData.push(room);
+var room = {x:3, y:3, dungeon:10, room:0, border:"lur"}; superData.push(room);
+var room = {x:4, y:4, dungeon:10, room:1, border:"udr"}; superData.push(room);
+var room = {x:3, y:4, dungeon:10, room:2, border:"l"}; superData.push(room);
+var room = {x:3, y:5, dungeon:10, room:3, border:"rd"}; superData.push(room);
+var room = {x:2, y:5, dungeon:10, room:4, border:"udl"}; superData.push(room);
+var room = {x:5, y:4, dungeon:11, room:0, border:"ul"}; superData.push(room);
+var room = {x:5, y:5, dungeon:11, room:1, border:""}; superData.push(room);
+var room = {x:4, y:5, dungeon:11, room:2, border:"ul"}; superData.push(room);
+var room = {x:4, y:6, dungeon:11, room:3, border:"ld"}; superData.push(room);
+var room = {x:6, y:5, dungeon:11, room:4, border:"d"}; superData.push(room);
+var room = {x:5, y:6, dungeon:11, room:5, border:"dr"}; superData.push(room);
+var room = {x:6, y:4, dungeon:11, room:6, border:"u"}; superData.push(room);

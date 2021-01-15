@@ -1,23 +1,32 @@
 const DUNGEON_HIGHLIGHT = "green";
 const HOVER_OPACITY = 0.5;
-const EXIT_HOVER_COLOR = "yellow";
+const UNEXPLORED_EXIT_COLOR = "rgb(0,255,0)"; //must be rgb
+const EXIT_HOVER_COLOR = "rgb(255,255,0)"; //must be rgb
 const EXIT_CONNECTING_COLOR = "cyan"; //color of start exit when drawing a connector
 const FREEIMG_SIZE = 16; //px
 const DELETE_HOVER_COLOR = "rgba(255,0,0,0.5)";
-const BAD_MULTI_PIT_PLACEMENT = "rgba(255,0,0,0.25)";
-const IMG_CIRCLING_SIZE = 20; //px
+const BAD_TILE_PLACEMENT_COLOR = "rgba(255,0,0,0.25)";
+const IMG_CIRCLING_WIDTH = 2; //px
 const IMG_CIRCLING_COLOR = "yellow";
-const RIGHT_DEL_CIRCLING_COLOR = "rgba(0,255,0,0.5)";
+const RIGHT_DEL_CIRCLING_COLOR = "rgba(0,255,0,0.75)";
 const MOVING_LINE_COLOR = "maroon";
 const MOVE_ARROW_SIZE = 15; //px
 const DOUBLE_CLICK_TIME = 500; //ms
+const POPUP_HIGHLIGHT_BORDER_COLOR = "yellow";
+const POPUP_HIGHLIGHT_BORDER_WIDTH = 3; //px
+const FREEIMG_EL_SIZE = FREEIMG_SIZE * Math.sqrt(2) - IMG_CIRCLING_WIDTH;
+const USELESS_TILE_FADE = 0.67;
+
+//*****
+//GRAPHICAL UTILITIES
+//Helpers that change how the tracker looks
+//*****
 
 //change the cursor based on options.cursor value
 function setCursor() {
 	var cursor = (options.cursor === "" ? "" : "url(images/icons/icon-"+options.cursor+".png), alias");
 	document.getElementById("i_mapper").style.cursor = cursor;
 	document.getElementById("myCanvas").style.cursor = cursor;
-	document.getElementById("i_scratch").style.cursor = cursor;
 	document.getElementById("i_special").style.cursor = cursor;
 	document.getElementById("i_iconography").style.cursor = cursor;
 	document.getElementById("i_dungeons").style.cursor = cursor;
@@ -26,10 +35,16 @@ function setCursor() {
 			document.getElementById("specpop"+j).style.cursor = cursor;
 		}
 	}
+	document.getElementById("superpop").style.cursor = cursor;
 }
 
 //Update generic counter text for the dungeon
+//Avoid unnecessary innerHTML assigns for perf reasons
 function updateDungeonCounterText(dungeon) {
+	if (dungeon === curDungeon && parseInt(document.getElementById("ind_chests").innerHTML) !== countChests(curDungeon))
+		document.getElementById("ind_chests").innerHTML = countChests(curDungeon);
+	if (dungeon === curDungeon && parseInt(document.getElementById("ind_keys").innerHTML) !== countKeys(curDungeon))
+		document.getElementById("ind_keys").innerHTML = countKeys(curDungeon);
 	var text = "";
 	if (map[dungeon].counter2 > 0)
 		text += map[dungeon].counter2;
@@ -41,14 +56,366 @@ function updateDungeonCounterText(dungeon) {
 			text += countChests(dungeon) + "/" + map[dungeon].counter;
 	else
 		text += map[dungeon].counter;
-	document.getElementById("i_scratch"+dungeon).innerHTML = text;
+	if (text !== document.getElementById("i_scratchtxt"+dungeon).innerHTML)
+		document.getElementById("i_scratchtxt"+dungeon).innerHTML = text;
+}
+
+//Delayed call to indicate end of double-click time on room
+//override forces the reversion regardless of logic
+function revertDelHighlight(room, override = false) {
+	if (options.lastDelete === room && window.performance.now() - options.lastDeleteTime >= DOUBLE_CLICK_TIME)
+		options.lastDelete = -1; //time expired, reset to first click
+	if (override === true
+		|| window.performance.now() - options.lastDeleteTime >= DOUBLE_CLICK_TIME //time expired, revert
+		|| options.lastDelete !== room) //click on different room could have restarted timer, but still revert if the timer is for a different room
+		document.getElementById("i_room"+room).style.backgroundColor = "";
+}
+
+//Fill in X marks if the tile has already been placed
+function updatePopupMarks(dungeon) {
+	for (var i = 0; i < specData[dungeon].rooms.length; i++) {
+		var placed = false;
+		loop: for (var j = 0; j < 13; j++)
+			for (var k = 0; k < ROOM_NUM; k++)
+				if (map[j].rooms[k].icon === specData[dungeon].rooms[i].img) {
+					placed = true;
+					break loop;
+				}
+		var style = document.getElementById("specpop"+dungeon+"_"+i).style;
+		var opacity = (specData[dungeon].rooms[i].high === true ? 1 : USELESS_TILE_FADE);
+		if (placed === true) {
+			document.getElementById("specpop"+dungeon+"_"+i+"_opa").style.backgroundColor = "rgba(0,0,0,"+(1-(opacity*HOVER_OPACITY))+")";
+			style.backgroundImage = "url(\"images/xmark.png\"), url(\"images/"+specData[dungeon].rooms[i].img+".png\")";
+		} else {
+			document.getElementById("specpop"+dungeon+"_"+i+"_opa").style.backgroundColor = "rgba(0,0,0,"+(1-opacity)+")";
+			style.backgroundImage = "url(\"images/"+specData[dungeon].rooms[i].img+".png\")";
+		}
+	}
+}
+
+//Fill in X marks if the tile has already been placed, red borders as overwrite warning
+function updateSuperMarks() {
+	for (var i = 0; i < superData.length; i++) {
+		roomData = specData[superData[i].dungeon].rooms[superData[i].room];
+		var placed = false;
+		var img = roomData.img
+		loop: for (var j = 0; j < 13; j++)
+			for (var k = 0; k < ROOM_NUM; k++)
+				if (map[j].rooms[k].icon === img) {
+					placed = true;
+					break loop;
+				}
+		var style = document.getElementById("superpop"+i).style;
+		if (placed === true) {
+			style.backgroundImage = "url(\"images/xmark.png\"), url(\"images/"+img+".png\")";
+			document.getElementById("i_superpop"+i).style.backgroundColor = "rgba(0,0,0,"+(1-HOVER_OPACITY)+")";
+		} else {
+			style.backgroundImage = "url(\"images/"+img+".png\")";
+			document.getElementById("i_superpop"+i).style.backgroundColor = "";
+		}
+		
+		var style = document.getElementById("i_superpop"+i).style;
+		var borderStyle = "1px solid white";
+		if (superData[i].border.indexOf("u") !== -1) style.borderTop = borderStyle;
+		if (superData[i].border.indexOf("d") !== -1) style.borderBottom = borderStyle;
+		if (superData[i].border.indexOf("l") !== -1) style.borderLeft = borderStyle;
+		if (superData[i].border.indexOf("r") !== -1) style.borderRight = borderStyle;
+		
+		var valid = true;
+		var tiles = (superData[i].text === undefined ? 1 : specData[superData[i].dungeon].rooms.length);
+		for (var j = 0; j < tiles; j++) {
+			tileNum = options.superRoom + j*NUM_MAP_COLUMNS;
+			if (tileNum >= ROOM_NUM
+				|| map[curDungeon].rooms[tileNum].visible === true
+				|| findIconsInRoom(tileNum).length > 0) {
+				valid = false;
+				break;
+			}
+		}
+		if (valid === false) {
+			style.borderTop = style.borderTop.replace(/white/g, "red");
+			style.borderBottom = style.borderBottom.replace(/white/g, "red");
+			style.borderLeft = style.borderLeft.replace(/white/g, "red");
+			style.borderRight = style.borderRight.replace(/white/g, "red");
+			style.borderWidth = (superData[i].text === undefined ? "2px" : "4px");
+		}
+	}
+}
+
+//*****
+//ROOM/EXIT UPDATERS
+//Controls how rooms of the main tracker looks
+//*****
+
+//Update all the exit style properties due to state of exit (no hover styling)
+function refreshExitGfx(room, exit) {
+	var iexitStyle = document.getElementById("i_exit"+room+"_"+exit).style;
+	var exitStyle = document.getElementById("exit"+room+"_"+exit).style;
+	var exitData = map[curDungeon].rooms[room].exits[exit];
+	
+	iexitStyle.backgroundColor = "";
+	exitStyle.backgroundImage = (exitData.icon === "" ? "" : "url(images/"+exitData.icon+".png)");
+	var exitOpacity = (exitData.visible === true ? 1 : 0);
+	exitStyle.backgroundColor = rgb2rgba(EXIT_COLOR, exitOpacity);
+	exitStyle.outlineColor = rgb2rgba(EXIT_BORDER_COLOR, exitOpacity);
+	
+	if (exitData.visible === true //only visible exits can be unexplored
+		&& EXIT_STATE_ICONS[getExitState(room, exit)] !== "xmark" //xmark is explored
+		&& (exitData.icon !== "entrancem" && exitData.icon !== "entrancew" && exitData.icon !== "entrancee" && exitData.icon !== "entranceb") //entrances are explored
+		&& isConnected(room, exit) === false) { //connected exits are explored
+		exitStyle.backgroundColor = UNEXPLORED_EXIT_COLOR;
+		if (getExitState(room, exit) === 0 && exitData.icon !== "") //change border as well in case icon covers background color
+			exitStyle.outlineColor = UNEXPLORED_EXIT_COLOR;
+	}
+	
+	//Start connector always looks the same
+	if (isStartConnectExit(room, exit) === true) { //start connector exit is always visible, no opacity
+		exitStyle.backgroundColor = EXIT_CONNECTING_COLOR;
+		exitStyle.outlineColor = EXIT_BORDER_COLOR;
+	}
+	
+	if (exitData.visible === false && exitModificationAllowed(room) === false) {
+		exitStyle.display = "none";
+		iexitStyle.display = "none";
+	} else {
+		exitStyle.display = "";
+		iexitStyle.display = "";
+	}
+}
+
+//Update all the room style properties due to state of room (no hover styling)
+function refreshRoomGfx(room) {
+	var iroomStyle = document.getElementById("i_room"+room).style;
+	var imageOpaqueStyle = document.getElementById("room"+room+"_opa").style;
+	var roomStyle = document.getElementById("room"+room).style;
+	var roomData = map[curDungeon].rooms[room];
+	
+	iroomStyle.backgroundColor = "";
+	imageOpaqueStyle.backgroundColor = "";
+	roomStyle.backgroundImage = (roomData.icon === "" ? "" : "url(images/"+roomData.icon+".png)");
+	roomStyle.backgroundColor = rgb2rgba(ROOM_COLOR, (roomData.visible === true ? 1 : 0));
+	
+	if ((options.mode === "connect" || options.connectPlus === true)
+		&& options.connectStart.room === room) {
+		//make start of connector room visible
+		if (roomData.visible === false)
+			roomStyle.backgroundColor = rgb2rgba(ROOM_COLOR, HOVER_OPACITY);
+	}
+	
+	if (room === options.lastDelete && window.performance.now() - options.lastDeleteTime < DOUBLE_CLICK_TIME)
+		iroomStyle.backgroundColor = DELETE_HOVER_COLOR;
+	//reversion handled by timeout logic or by cancelling delete mode
+}
+
+//Update all style properties of room and child exits (no hover styling)
+function refreshRoomAndExitsGfx(room) {
+	refreshRoomGfx(room);
+	for (var i = 0; i < EXIT_NUM; i++)
+		refreshExitGfx(room, i);
+}
+
+//Set style properties for all rooms and exits on the map.
+function refreshAllRooms() {
+	for (var i = 0; i < ROOM_NUM; i++)
+		refreshRoomAndExitsGfx(i);
+}
+
+//Changes room/exit styling properties based on what the mouse is on top of
+function applyHoverStyling(event) {
+	//changes only apply if hovering over room or exit
+	if (event.target.id.substring(2, 6) === "room" || event.target.id.substring(2, 6) === "exit") {
+		var roomNum = getRoomNumFromID(event.target.id);
+		var exitNum = getExitNumFromID(event.target.id);
+		var roomData = map[curDungeon].rooms[roomNum];
+		var roomStyle = document.getElementById("room"+roomNum).style;
+		
+		if (options.mode !== "special") { //default hover behavior
+			if (roomData.visible === false) //ghost room if over hovering over room or exit
+				roomStyle.backgroundColor = rgb2rgba(ROOM_COLOR, HOVER_OPACITY);
+			
+			if (exitNum === -1) { //room hover
+				for (var i = 0; i < EXIT_NUM; i++) {
+					var exitData = roomData.exits[i];
+					var exitStyle = document.getElementById("exit"+roomNum+"_"+i).style;
+					if (exitData.visible === false && isStartConnectExit(roomNum, i) === false) {
+						exitStyle.backgroundColor = rgb2rgba(EXIT_COLOR, HOVER_OPACITY * HOVER_OPACITY);
+						exitStyle.outlineColor = EXIT_BORDER_COLOR;
+					}
+				}
+			} else { //exit hover
+				var exitData = roomData.exits[exitNum];
+				var exitStyle = document.getElementById("exit"+roomNum+"_"+exitNum).style;
+				if (isStartConnectExit(roomNum, exitNum) === false) { //no change if hovering over start connection
+					if (roomData.visible === true) { //hovering over an exit in a real room
+						if (exitData.visible === false) {
+							exitStyle.backgroundColor = rgb2rgba(EXIT_HOVER_COLOR, HOVER_OPACITY); //ghost exit
+							exitStyle.outlineColor = EXIT_BORDER_COLOR;
+						} else { //real exit
+							exitStyle.backgroundColor = EXIT_HOVER_COLOR;
+							exitStyle.outlineColor = EXIT_BORDER_COLOR;
+						}
+					} else { //hovering over an exit in a ghost room
+						exitStyle.backgroundColor = rgb2rgba(EXIT_HOVER_COLOR, HOVER_OPACITY * HOVER_OPACITY);
+						exitStyle.outlineColor = EXIT_BORDER_COLOR;
+					}
+				}
+				if (exitData.visible === true && isConnected(roomNum, exitNum) === true) { //highlight matching exit
+					var list = findConnections(roomNum, exitNum);
+					for (var i = 0; i < list.length; i++) {
+						if (map[curDungeon].rooms[list[i].room].exits[list[i].exit].visible === true && isStartConnectExit(list[i].room, list[i].exit) === false)
+							document.getElementById("exit"+list[i].room+"_"+list[i].exit).style.backgroundColor = EXIT_HOVER_COLOR;
+					}
+				}
+			}
+		} else if (options.cursor === "delete") {
+			if (exitNum !== -1) { //highlight exit for deletion
+				var exitData = roomData.exits[exitNum];
+				var exitStyle = document.getElementById("exit"+roomNum+"_"+exitNum).style;
+				if (exitData.visible === true && exitModificationAllowed(roomNum)) {
+					document.getElementById("i_exit"+roomNum+"_"+exitNum).style.backgroundColor = DELETE_HOVER_COLOR;
+					exitStyle.backgroundColor = EXIT_COLOR;
+					exitStyle.outlineColor = EXIT_BORDER_COLOR;
+				}
+			}
+		} else { //special mode that's not delete
+			//pre-defined tile previews if over room or exit
+			var startDataNum = options.state[options.special]; //first tile preview
+			var specialLength = (specData[options.special].multi === true ? specData[options.special].rooms.length : 1);
+			var valid = true; //no overwriting
+			for (var i = 0; i < specialLength; i++) {
+				var tileNum = roomNum + NUM_MAP_COLUMNS * i;
+				if (tileNum >= ROOM_NUM || map[curDungeon].rooms[tileNum].visible === true || findIconsInRoom(tileNum).length > 0) {
+					valid = false; //some overwrite
+					break;
+				}
+			}
+			for (var i = 0; i < specialLength; i++) {
+				var tileNum = roomNum + NUM_MAP_COLUMNS * i;
+				var roomCheck = document.getElementById("room"+tileNum);
+				if (roomCheck !== null) {
+					roomCheck.style.backgroundImage = "url(images/"+specData[options.special].rooms[startDataNum+i].img+".png)";
+					document.getElementById("room"+tileNum+"_opa").style.backgroundColor = "rgba(0,0,0,"+HOVER_OPACITY+")";
+					//roomCheck.style.filter = "brightness("+(HOVER_OPACITY*100)+"%)";
+					if (valid === false) {
+						roomCheck.style.backgroundImage = "url(images/xmark.png), " + roomCheck.style.backgroundImage;
+						document.getElementById("i_room"+tileNum).style.backgroundColor = BAD_TILE_PLACEMENT_COLOR;
+					}
+					for (var j = 0; j < EXIT_NUM; j++) {
+						var exitExists = (specData[options.special].rooms[startDataNum+i].exits.indexOf(j) !== -1)
+						if (exitExists) {
+							roomCheck.childNodes[EXIT_NUM-j-1+1].style.backgroundColor = rgb2rgba(UNEXPLORED_EXIT_COLOR, HOVER_OPACITY);
+							roomCheck.childNodes[EXIT_NUM-j-1+1].style.outlineColor = EXIT_BORDER_COLOR;
+							roomCheck.childNodes[EXIT_NUM-j-1+1].style.display = "";
+							
+							if (valid === false)
+								document.getElementById("i_exit"+tileNum+"_"+j).style.backgroundColor = BAD_TILE_PLACEMENT_COLOR;
+						} else {
+							roomCheck.childNodes[EXIT_NUM-j-1+1].style.display = "none";
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	highlightHoverIcon(event);
+}
+
+//enables border for free-standing icon under mouse, if appropriate
+//dungeon icons take priority over scratch icon
+//later icons take priority over earlier icons
+function highlightHoverIcon(event) {
+	var circleColor = "";
+	if (options.mode === "special" && options.cursor === "delete")
+		circleColor = IMG_CIRCLING_COLOR;
+	else if (options.rightErase === true) {
+		circleColor = RIGHT_DEL_CIRCLING_COLOR;
+	} else
+		return; //no icon highlights
+	
+	if (event.target.id.substring(2, 6) === "exit") { //interactable
+		if (options.rightErase === true)
+			return;
+		if (map[curDungeon].rooms[getRoomNumFromID(event.target.id)].exits[getExitNumFromID(event.target.id)].visible === true)
+			return; //deletable
+	}
+	
+	var iconid = findHoveredIcon(event.pageX, event.pageY);
+	if (iconid !== -1) {
+		document.getElementById("i_"+iconid).style.borderColor = circleColor;
+	}
+}
+
+//*****
+//CANVAS FUNCTIONS
+//Drawing on canvas
+//*****
+
+//Creates elements for a free standing icon and adds it to the data structs
+//pass "scratch7" to add a free standing icon to dungeon 7 scratch space
+function addFreeStandingIconElement(x, y, img = options.cursor, dungeon = curDungeon) {
+	var icontd = document.createElement("div");
+	var scratchicon = (dungeon.toString().substring(0, 7) === "scratch");
+
+	if (scratchicon === false) {
+		var col = (x - DUNGEON_WINDOW_WIDTH - DUNGEON_SCRATCH_WIDTH - ROOM_PADDING/2) / (ROOM_SIZE + ROOM_PADDING);
+		var row = (y - MAP_OFFSET_Y - ROOM_PADDING/2) / (ROOM_SIZE + ROOM_PADDING);
+		var roomNum = parseInt(col) + parseInt(row) * NUM_MAP_COLUMNS;
+		if (row < 0 || col < 0 || parseInt(col) >= NUM_MAP_COLUMNS || roomNum >= ROOM_NUM)
+			roomNum = "A"; //outside of any room
+		icontd.id = "free"+dungeon+"_"+roomNum+"_"+options.imageNum;
+	} else
+		icontd.id = "free"+dungeon.substring(7)+"_"+options.imageNum;
+	
+	icontd.class = "noselect";
+	icontd.style.position = "absolute";
+	icontd.style.height = FREEIMG_SIZE;
+	icontd.style.width = FREEIMG_SIZE;
+	icontd.style.top = y;
+	icontd.style.left = x - DUNGEON_WINDOW_WIDTH;
+	icontd.style.marginLeft = -(FREEIMG_SIZE / 2);
+	icontd.style.marginTop = -(FREEIMG_SIZE / 2);
+	icontd.style.padding = "0px";
+	icontd.style.backgroundRepeat = "no-repeat";
+	icontd.style.backgroundPosition = "center";
+	icontd.style.backgroundImage = "url(images/"+img+".png)";
+	icontd.style.backgroundSize = FREEIMG_SIZE+"px";
+	if (dungeon !== curDungeon && scratchicon === false)
+		icontd.style.display = "none";
+	document.getElementById("easel").appendChild(icontd);
+	
+	var iicontd = document.createElement("td");
+	iicontd.id = "i_" + icontd.id;
+	iicontd.class = icontd.class;
+	iicontd.style.position = icontd.style.position;
+	iicontd.style.height = FREEIMG_EL_SIZE;
+	iicontd.style.width = FREEIMG_EL_SIZE;
+	iicontd.style.top = icontd.style.top; //y - MAP_OFFSET_Y - roomCoord.y - FREEIMG_EL_SIZE/2 - IMG_CIRCLING_WIDTH + roomCoord.y + (FREEIMG_EL_SIZE+(IMG_CIRCLING_WIDTH*2))/2 - FREEIMG_SIZE/2;
+	iicontd.style.left = icontd.style.left; //x - DUNGEON_WINDOW_WIDTH - DUNGEON_SCRATCH_WIDTH - roomCoord.x - FREEIMG_EL_SIZE/2 - IMG_CIRCLING_WIDTH + roomCoord.x + (FREEIMG_EL_SIZE+(IMG_CIRCLING_WIDTH*2))/2 - FREEIMG_SIZE/2;
+	iicontd.style.marginLeft = -(FREEIMG_EL_SIZE/2 + IMG_CIRCLING_WIDTH);
+	iicontd.style.marginTop = -(FREEIMG_EL_SIZE/2 + IMG_CIRCLING_WIDTH);
+	iicontd.style.padding = icontd.style.padding;
+	iicontd.style.border = IMG_CIRCLING_WIDTH + "px solid rgba(0,0,0,0)";
+	iicontd.style.borderRadius = "50%";
+	iicontd.style.display = icontd.style.display;
+	iicontd.style.zIndex = 2;
+	document.getElementById("easel").appendChild(iicontd);
+
+	if (scratchicon === false)
+		map[dungeon].images.push(icontd.id);
+	else
+		options.images.push(icontd.id);
+
+	options.imageNum++;
 }
 
 //Redraw all lines on canvas
-function refreshLines(event) {
-	var theCanvas = document.getElementById("myCanvas");
+function refreshLines(event, force = false) {
+
+	var theCanvas = document.getElementById("staticCanvas");
 	var ctx = theCanvas.getContext("2d");
-	ctx.clearRect(0, 0, theCanvas.width, theCanvas.height);
+	if (force === true)
+		ctx.clearRect(0, 0, theCanvas.width, theCanvas.height);
 	ctx.strokeStyle = EXIT_CONNECTING_COLOR;
 	ctx.lineWidth = 2;
 	ctx.beginPath();
@@ -62,71 +429,43 @@ function refreshLines(event) {
 			|| ((options.mode === "connect" || options.connectPlus === true)
 				&& ((con.start.room === options.connectStart.room && con.start.exit === options.connectStart.exit)
 					|| (con.end.room === options.connectStart.room && con.end.exit === options.connectStart.exit)))) {
+						
+			if (con.show === true && (con.drawn === false || force === true)) {
 
-			var exit = document.getElementById("exit"+con.start.room+"_"+con.start.exit).style;
-			var coord = calcRoomCoord(con.start.room);
-			ctx.moveTo(DUNGEON_WINDOW_WIDTH + DUNGEON_SCRATCH_WIDTH + coord.x + parseInt(exit.left) + (EXIT_SIZE / 2), MAP_OFFSET_Y + coord.y + parseInt(exit.top) + (EXIT_SIZE / 2));
+				con.drawn = true;
+				var exit = document.getElementById("exit"+con.start.room+"_"+con.start.exit).style;
+				var coord = calcRoomCoord(con.start.room);
+				ctx.moveTo(DUNGEON_WINDOW_WIDTH + DUNGEON_SCRATCH_WIDTH + coord.x + parseInt(exit.left), MAP_OFFSET_Y + coord.y + parseInt(exit.top));
 
-			var exit = document.getElementById("exit"+con.end.room+"_"+con.end.exit).style;
-			var coord = calcRoomCoord(con.end.room);
-			ctx.lineTo(DUNGEON_WINDOW_WIDTH + DUNGEON_SCRATCH_WIDTH + coord.x + parseInt(exit.left) + (EXIT_SIZE / 2), MAP_OFFSET_Y + coord.y + parseInt(exit.top) + (EXIT_SIZE / 2));
+				var exit = document.getElementById("exit"+con.end.room+"_"+con.end.exit).style;
+				var coord = calcRoomCoord(con.end.room);
+				ctx.lineTo(DUNGEON_WINDOW_WIDTH + DUNGEON_SCRATCH_WIDTH + coord.x + parseInt(exit.left), MAP_OFFSET_Y + coord.y + parseInt(exit.top));
 
-			ctx.stroke();
+				
+			}
 		}
 	});
+	ctx.stroke();
 	
-	if (options.rightErase === true && event !== null) {
-		var img = null;
-		var highlight = findHoveredIcon(event.pageX, event.pageY);
-		if (highlight !== -1) img = map[curDungeon].images[highlight];
-		//Circle highlighted icons for deletion
-		if (img !== null) {
-			ctx.strokeStyle = RIGHT_DEL_CIRCLING_COLOR;
-			ctx.beginPath();
-			ctx.arc(DUNGEON_WINDOW_WIDTH + img.x, MAP_OFFSET_Y + img.y, IMG_CIRCLING_SIZE/2, 0, 2*Math.PI);
-			ctx.stroke();
-		}
-	}
-
-	if (options.mode === "connect" || options.connectPlus === true) {
+	if ((options.mode === "connect" || options.connectPlus === true) && event !== null) {
 		//Draw the dynamic connector line to the mouse pointer
 		var start = document.getElementById("exit"+options.connectStart.room+"_"+options.connectStart.exit).style;
 		var coord = calcRoomCoord(options.connectStart.room);
+		var fromx = DUNGEON_WINDOW_WIDTH + DUNGEON_SCRATCH_WIDTH + coord.x + parseInt(start.left);
+		var fromy = MAP_OFFSET_Y + coord.y + parseInt(start.top);
+
+		var theCanvas = document.getElementById("myCanvas");
+		var ctx = theCanvas.getContext("2d");
+		clearDynamicLine();
+		ctx.lineWidth = 2;
 		ctx.strokeStyle = EXIT_CONNECTING_COLOR;
 		ctx.beginPath();
-		ctx.moveTo(DUNGEON_WINDOW_WIDTH + DUNGEON_SCRATCH_WIDTH + coord.x + parseInt(start.left) + (EXIT_SIZE / 2), MAP_OFFSET_Y + coord.y + parseInt(start.top) + (EXIT_SIZE / 2));
+		ctx.moveTo(fromx, fromy);
 		ctx.lineTo(event.pageX, event.pageY);
 		ctx.stroke();
-	} else if (options.mode === "special" && options.cursor === "delete") {
-		var img = null;
-		var highlight = findHoveredIcon(event.pageX, event.pageY);
-		if (highlight !== -1) img = map[curDungeon].images[highlight];
-		else {
-			highlight = findHoveredScratchIcon(event.pageX, event.pageY);
-			if (highlight !== -1) img = options.images[highlight];
-		}
-		//Circle highlighted icons for deletion
-		if (img !== null) {
-			ctx.strokeStyle = IMG_CIRCLING_COLOR;
-			ctx.beginPath();
-			ctx.arc(DUNGEON_WINDOW_WIDTH + img.x, MAP_OFFSET_Y + img.y, IMG_CIRCLING_SIZE/2, 0, 2*Math.PI);
-			ctx.stroke();
-		}
-		//Red room marked for deletion
-		var cellName = event.target.id.substring(2);
-		var target = null;
-		if (cellName.substring(0, 4) === "room")
-			target = document.getElementById(event.target.id);
-		else if (cellName.substring(0, 4) === "exit")
-			target = document.getElementById(event.target.id).parentNode;
-		if (target !== null) {
-			if (highlight !== -1)
-				target.style.backgroundColor = "";
-			else if (parseInt(cellName.substring(4, 6)) === options.lastDelete && window.performance.now() - options.lastDeleteTime < DOUBLE_CLICK_TIME) {
-				target.style.backgroundColor = DELETE_HOVER_COLOR;
-			} else
-				target.style.backgroundColor = "";
-		}
+
+		options.lastCursor = {x:event.pageX, y:event.pageY};
+
 	} else if (options.mode === "mover") {
 		//Draw the move arrow
 		var coord = calcRoomCoord(options.room);
@@ -137,706 +476,83 @@ function refreshLines(event) {
 		var dx = tox - fromx;
 		var dy = toy - fromy;
 		var angle = Math.atan2(dy, dx);
+		
+		var theCanvas = document.getElementById("myCanvas");
+		var ctx = theCanvas.getContext("2d");
+		clearDynamicLine();
+		ctx.lineWidth = 2;
+		
 		ctx.strokeStyle = MOVING_LINE_COLOR;
 		ctx.beginPath();
 		ctx.moveTo(fromx, fromy);
 		ctx.lineTo(tox, toy);
 		ctx.moveTo(tox, toy);
-		ctx.lineTo(tox - MOVE_ARROW_SIZE * Math.cos(angle - Math.PI/6), toy - MOVE_ARROW_SIZE * Math.sin(angle - Math.PI/6));
+		ctx.lineTo(Math.round(tox - MOVE_ARROW_SIZE * Math.cos(angle - Math.PI/6)), Math.round(toy - MOVE_ARROW_SIZE * Math.sin(angle - Math.PI/6)));
 		ctx.moveTo(tox, toy);
-		ctx.lineTo(tox - MOVE_ARROW_SIZE * Math.cos(angle + Math.PI/6), toy - MOVE_ARROW_SIZE * Math.sin(angle + Math.PI/6));
+		ctx.lineTo(Math.round(tox - MOVE_ARROW_SIZE * Math.cos(angle + Math.PI/6)), Math.round(toy - MOVE_ARROW_SIZE * Math.sin(angle + Math.PI/6)));
 		ctx.stroke();
+		
+		options.lastCursor = {x:event.pageX, y:event.pageY};
 	}
 }
 
-//Redo all attributes of the specified room
-function refreshRoomHelper(room) {
-	document.getElementById("i_room"+room).style.backgroundColor = ""; //reset delete highlight or multipit alpha overlay
-	var roomData = map[curDungeon].rooms[room];
-	var roomStyle = document.getElementById("room"+room).style;
-	roomStyle.opacity = (roomData.visible === true ? 1 : 0);
-	roomStyle.backgroundImage = (roomData.icon === "" ? "" : "url(images/"+roomData.icon+".png)");
-	roomStyle.backgroundColor = ROOM_COLOR;
-	for (var j = 0; j < EXIT_NUM; j++) {
-		var exitData = map[curDungeon].rooms[room].exits[j];
-		var exitStyle = document.getElementById("exit"+room+"_"+j).style;
-		document.getElementById("i_exit"+room+"_"+j).style.backgroundColor = ""; //undo delete highlight
-		exitStyle.opacity = (exitData.visible === true ? 1 : 0);
-		exitStyle.backgroundColor = EXIT_COLOR;
-		var img = (exitData.state === 1 ? "xmark" : (exitData.state === 2 ? "ditems_sk" : exitData.icon));
-		exitStyle.backgroundImage = (img === "" ? "" : "url(images/"+img+".png)");
-	}
-}
-
-//Change room displays based on mouse hovers
-//null arguments is OK (mouse hovering over no exit, or no room)
-//cellName assumed to be a room or exit
-function refreshVisible(cellName = "") {
-	if (cellName !== "" && cellName.substring(0, 4) !== "room" && cellName.substring(0, 4) !== "exit")
-		console.log("Error in cellName arg calling refreshVisible: ", cellName);
-	
-	//Laziness: redo visibility for everything
-	for (var i = 0; i < ROOM_NUM; i++) {
-		refreshRoomHelper(i);
-	}
-	
-	document.getElementById("chests").innerHTML = countChests(curDungeon);
-	updateDungeonCounterText(curDungeon);
-	
-	//Redo all dungeon images
-	for (var i = 0; i < 13; i++) {
-		var dungStyle = document.getElementById("dung"+i).style;
-		if (map[i].finished === true)
-			dungStyle.backgroundImage = "url(images/xmark.png), url(images/dung"+i+".png)";
-		else
-			dungStyle.backgroundImage = "url(images/dung"+i+".png)";
-	}
-
-	//Special handling for whatever we're hovering over
-	var mouseRoom = parseInt(cellName.substring(4, 6));
-	var mouseExit = parseInt(cellName.substring(cellName.indexOf("_") + 1));
-	var room = document.getElementById("room"+mouseRoom);
-	var exit = document.getElementById("exit"+mouseRoom+"_"+mouseExit);
-	var showExits = (room === null || map[curDungeon].rooms[mouseRoom].icon === "" || options.disableExits === false);
-	if (options.mode !== "special" || options.cursor !== "delete") { //Default hover behavior except for delete mode
-		if (room !== null) { //hovering over a room
-			//normal room if it's already created, ghost room if hovering
-			room.style.opacity = (map[curDungeon].rooms[mouseRoom].visible === true ? 1 : HOVER_OPACITY);
-			if (map[curDungeon].rooms[mouseRoom].visible === true)
-				if (exit === null) {
-					//hovering over a real room, show ghost exits
-					for (var j = 0; j < EXIT_NUM; j++)
-						room.childNodes[j].style.opacity = (map[curDungeon].rooms[mouseRoom].exits[j].visible === true ? 1 : (showExits === false ? 0 : HOVER_OPACITY));
-				} else {
-					//hovering over an exit in a real room
-					exit.style.opacity = (map[curDungeon].rooms[mouseRoom].exits[mouseExit].visible === true ? 1 : (showExits === false ? 0 : HOVER_OPACITY));
-					exit.style.backgroundColor = EXIT_HOVER_COLOR;
-				}
-			else {
-				//empty square (no room)
-				if (exit === null) {
-					//hovering over a ghost room
-					for (var j = 0; j < EXIT_NUM; j++)
-						room.childNodes[j].style.opacity = (map[curDungeon].rooms[mouseRoom].exits[j].visible === true ? 1 : (showExits === false ? 0 : HOVER_OPACITY));
-				} else {
-					//hovering over an exit in a ghost room
-					exit.style.opacity = (showExits === false ? 0 : 1); //already ghostly room, no need for additionaly ghostliness
-					exit.style.backgroundColor = EXIT_HOVER_COLOR;
-				}
-			}
-		}
-	}
+function clearDynamicLine() {
+	var fromx;
+	var fromy;
 	
 	if (options.mode === "connect" || options.connectPlus === true) {
-		//highlight the start exit of the line
-		var exitStart = document.getElementById("exit"+options.connectStart.room+"_"+options.connectStart.exit);
-		exitStart.style.opacity = 1;
-		exitStart.style.backgroundColor = EXIT_CONNECTING_COLOR;
-		//make start of connector visible
-		if (map[curDungeon].rooms[options.connectStart.room].visible === false)
-			document.getElementById("room"+options.connectStart.room).style.opacity = HOVER_OPACITY;
-	}
-	
-	if (options.mode === "special" && options.cursor !== "delete") {
-		//pre-defined tile previews if over room/exit
-		if (room !== null) {
-			if (specData[options.special].multi === true) { //multiple room laydown
-				var valid = true;
-				for (var i = 0; i < specData[options.special].rooms.length; i++) {
-					var tileNum = mouseRoom + NUM_MAP_COLUMNS * i;
-					if (valid === false || tileNum >= ROOM_NUM || map[curDungeon].rooms[tileNum].visible === true)
-						valid = false;
-				}
-				for (var i = 0; i < specData[options.special].rooms.length; i++) {
-					var tileNum = mouseRoom + NUM_MAP_COLUMNS * i;
-					var roomCheck = document.getElementById("room"+tileNum);
-					if (roomCheck !== null) {
-						if (valid === false) {
-							document.getElementById("room"+tileNum).style.backgroundImage = "url(images/xmark.png)";
-							document.getElementById("i_room"+tileNum).style.backgroundColor = BAD_MULTI_PIT_PLACEMENT;
-						} else
-							document.getElementById("room"+tileNum).style.backgroundImage = "url(images/blank.png)";
-						document.getElementById("room"+tileNum).style.backgroundImage += ", url(images/"+specData[options.special].rooms[i].img+".png)";
-						document.getElementById("room"+tileNum).style.opacity = HOVER_OPACITY;
-					}
-				}
-			} else {
-				var valid = (map[curDungeon].rooms[mouseRoom].visible === false)
-				var icons = findIconsInRoom(mouseRoom);
-				if (valid === false || icons.length > 0)
-					room.style.backgroundImage = "url(images/xmark.png)";
-				else
-					room.style.backgroundImage = "url(images/blank.png)";
-				room.style.backgroundImage += ", url(images/"+specData[options.special].rooms[options.state[options.special]].img+".png)";
-				room.style.opacity = HOVER_OPACITY;
-			}
-		}
-	} else if (options.mode === "special" && options.cursor === "delete") {
-		//highlight exit for deletion
-		if (cellName.substring(0, 4) === "exit" && options.disableExits === false) {
-			if (map[curDungeon].rooms[mouseRoom].exits[mouseExit].visible === true) {
-				var target = document.getElementById("i_"+cellName);
-				target.style.backgroundColor = DELETE_HOVER_COLOR;
-			}
-		}
-	}
-	
-	//Nothing else happening in imager, mover, popup
-}
-
-//Called on mouseover/mouseout on any room or exit
-function roomVisible(event) {
-	var cellName = event.target.id.substring(2);
-	if (options.mode !== "popup") { //all is paused during popup
-		if (cellName.substring(0, 4) === "exit" || cellName.substring(0, 4) === "room") {
-			if (event.type === "mouseover")
-				refreshVisible(cellName);
-			else
-				refreshVisible();
-		}
-	}
-}
-
-//Clears entire board of free-standing images, mark all icons as not drawn
-function wipeImages() {
-	var theCanvas = document.getElementById("imgCanvas");
-	var ctx = theCanvas.getContext("2d");
-	ctx.clearRect(0, 0, theCanvas.width, theCanvas.height);
-	for (var i = 0; i < map[curDungeon].images.length; i++)
-		map[curDungeon].images[i].drawn = false;
-	for (var i = 0; i < options.images.length; i++)
-		options.images[i].drawn = false;
-}
-
-//Redraw all free images
-//Only draws images marked as not drawn yet
-//Does not clear/erase anything
-function drawImages() {
-	document.getElementById("chests").innerHTML = countChests(curDungeon);
-	updateDungeonCounterText(curDungeon);
-	var theCanvas = document.getElementById("imgCanvas");
-	var ctx = theCanvas.getContext("2d", {antialias: false});
-	ctx.mozImageSmoothingEnabled = false;
-	ctx.webkitImageSmoothingEnabled = false;
-	ctx.msImageSmoothingEnabled = false;
-	ctx.imageSmoothingEnabled = false;
-	map[curDungeon].images.forEach(function(img, imgNum) {
-		if (img.drawn === false) {
-			img.drawn = true;
-			var imageObj = new Image();
-			imageObj.src = "images/"+img.img+".png";
-			imageObj.onload = function() {
-				ctx.drawImage(imageObj, (DUNGEON_WINDOW_WIDTH + img.x - FREEIMG_SIZE/2) * IMG_CANVAS_SCALE, (MAP_OFFSET_Y + img.y - FREEIMG_SIZE/2) * IMG_CANVAS_SCALE, FREEIMG_SIZE * IMG_CANVAS_SCALE, FREEIMG_SIZE * IMG_CANVAS_SCALE);
-			};
-		}
-	});
-	options.images.forEach(function(img, imgNum) {
-		if (img.drawn === false) {
-			img.drawn = true;
-			var imageObj = new Image();
-			imageObj.src = "images/"+img.img+".png";
-			imageObj.onload = function() {
-				ctx.drawImage(imageObj, (DUNGEON_WINDOW_WIDTH + img.x - FREEIMG_SIZE/2) * IMG_CANVAS_SCALE, (MAP_OFFSET_Y + img.y - FREEIMG_SIZE/2) * IMG_CANVAS_SCALE, FREEIMG_SIZE * IMG_CANVAS_SCALE, FREEIMG_SIZE * IMG_CANVAS_SCALE);
-			};
-		}
-	});
-}
-
-//Handler for tracker clicks
-function trackerClick(event) {
-	var cellName = event.target.id.substring(2); //remove the "i_" prefix
-	
-	if (event.button === 1) { //middle click
-		//Hovering over an icon -- delete it
-		var iconIndex = findHoveredIcon(event.pageX, event.pageY);
-		if (iconIndex !== -1) map[curDungeon].images.splice(iconIndex, 1);
-		else {
-			iconIndex = findHoveredScratchIcon(event.pageX, event.pageY);
-			if (iconIndex !== -1) options.images.splice(iconIndex, 1);
-		}
-		if (iconIndex !== -1) { //deleted an icon
-			wipeImages();
-			drawImages();
-			refreshLines(event); //remove circling
-		}
-
-		if (cellName.substring(0, 4) === "icon") {
-			//Always activate imager mode
-			if (options.mode === "special")
-				cancelSpecialMode();
-			if (options.mode === "imager")
-				cancelImagerMode();
-			if (options.mode === "connect")
-				cancelConnectMode(event);
-			if (options.mode === "normal")
-				startImagerMode(parseInt(cellName.substring(4)));
-			//popup mode -- everything else disabled
-			//mover mode -- cannot left click in this mode
-		}
-	}
-	
-	if (event.button !== 0 && event.button !== 2) //Respond to only left and right clicks
-		return;
-
-	//Clicks on the left-side dungeons always switch the map
-	if (cellName.substring(0, 4) === "dung") {
-		//Left or right click
-		if (event.button === 0)
-			switchMap(parseInt(cellName.substring(4)), event);
-		else if (event.button === 2) {
-			map[parseInt(cellName.substring(4))].finished = !map[parseInt(cellName.substring(4))].finished;
-			refreshVisible();
-		}
-		return;
-	}
-	
-	if (cellName.substring(0, 4) === "icon" && ICON_NAMES[cellName.substring(4)] === "info") {
-		//cancel all modes
-		if (options.mode === "popup")
-			cancelPopupMode();
-		else if (options.mode === "special")
-			cancelSpecialMode();
-		else if (options.mode === "connect")
-			cancelConnectMode(event);
-		else if (options.mode === "imager")
-			cancelImagerMode();
-		openOptions();
-		return;
-	}
-	
-	switch (options.mode) {
-		case "normal":
-			if (event.button === 0) {
-				if (cellName.substring(0, 4) === "icon") {
-					startImagerMode(parseInt(cellName.substring(4)));
-				} else if (cellName.substring(0, 4) === "spec") {
-					startSpecialMode(parseInt(cellName.substring(4)));
-				} else if (cellName.substring(0, 7) === "scratch") {
-					if (parseInt(cellName.substring(7)) !== curDungeon) //clicked on different dungeon, switch map
-						switchMap(parseInt(cellName.substring(7)), event);
-					else //clicked on same dungeon, update counter
-						scratchCounterUpdate(event.button);
-				} else if (cellName.substring(0, 4) === "room") {
-					if (map[curDungeon].rooms[parseInt(cellName.substring(4))].visible === true) { //room already exists
-						options.mode = "mover";
-						options.room = parseInt(cellName.substring(4, 6));
-						canvasMove(event);
-					} else { //no room here yet
-						map[curDungeon].rooms[parseInt(cellName.substring(4))].visible = true;
-						refreshVisible(cellName);
-					}
-				} else if (cellName.substring(0, 4) === "exit") {
-					roomNum = parseInt(cellName.substring(4, 6));
-					exitNum = parseInt(cellName.substring(cellName.indexOf("_")+1));
-					if (map[curDungeon].rooms[roomNum].visible === false) { //whole room is not visible
-						map[curDungeon].rooms[roomNum].visible = true;
-						if (options.disableExits === true && map[curDungeon].rooms[roomNum].icon !== "")
-							; //don't create it
-						else
-							map[curDungeon].rooms[roomNum].exits[exitNum].visible = true;
-					} else { //room already visible, clicking on exit
-						var exit = map[curDungeon].rooms[roomNum].exits[exitNum];
-						if (exit.visible === false) //no exit, create it
-							if (options.disableExits === true && map[curDungeon].rooms[roomNum].icon !== "")
-								; //don't create it
-							else
-								exit.visible = true;
-						else { //exit exists, cycle exit state
-							cycleExitState(roomNum, exitNum);
-						}
-						refreshLines(event); //connector line add/remove
-					}
-					refreshVisible(cellName);
-				}
-				//Default do nothing
-			} else if (event.button === 2) {
-				if (cellName.substring(0, 4) === "icon") { //same as left click
-					startImagerMode(parseInt(cellName.substring(4)));
-				} else if (cellName.substring(0, 4) === "spec") {
-					if (specData[parseInt(cellName.substring(4))].popup === true) //popup menu
-						startPopupMode(parseInt(cellName.substring(4)));
-					else //no popup menu, same as left click
-						startSpecialMode(parseInt(cellName.substring(4)));
-				} else if (cellName.substring(0, 7) === "scratch") { //same as left click
-					if (parseInt(cellName.substring(7)) !== curDungeon)
-						switchMap(parseInt(cellName.substring(7)), event);
-					else
-						scratchCounterUpdate(event.button);
-				//no action on room right-click
-				} else if (cellName.substring(0, 4) === "exit"
-					&& (options.disableExits === false
-						|| map[curDungeon].rooms[parseInt(cellName.substring(4, 6))].icon === ""
-						|| map[curDungeon].rooms[parseInt(cellName.substring(4, 6))].exits[parseInt(cellName.substring(cellName.indexOf("_")+1))].visible === true)) {
-					startConnectMode(parseInt(cellName.substring(4, 6)), parseInt(cellName.substring(cellName.indexOf("_")+1)));
-					refreshLines(event);
-					refreshVisible(cellName);
-				} else if (options.rightErase === true) { //delete hovered icon
-					tryToDeleteHoveredIcon(event);
-				}
-				//Default do nothing
-			}
-			break;
-				
-		//*****
-		//Connect mode: pairing two exits together
-		//*****
-		case "connect":
-			if (event.button === 0) {
-				if (cellName.substring(0, 4) === "icon") { //drew a path to an icon
-					map[curDungeon].rooms[options.connectStart.room].visible = true;
-					var exit = map[curDungeon].rooms[options.connectStart.room].exits[options.connectStart.exit];
-					exit.visible = true;
-					exit.state = 0;
-					exit.icon = ICON_NAMES[parseInt(cellName.substring(4))];
-					cancelConnectMode(event); //also reverts highlight/dynamic line
-				} else if (cellName.substring(0, 4) === "spec") { //preserve connection while grabbing tile
-					if (specData[parseInt(cellName.substring(4))].rooms[0].img === "delete") //But not for delete function
-						cancelConnectMode(event);
-					startSpecialMode(parseInt(cellName.substring(4)));
-				} else if (cellName.substring(0, 7) === "scratch") {
-					if (parseInt(cellName.substring(7)) === curDungeon)
-						; //do nothing
-					else {
-						cancelConnectMode(event);
-						trackerClick(event);
-					}
-				//no action on room left click (avoid misclick of exit)
-				} else if (cellName.substring(0, 4) === "exit") {
-					var exitClick = {room:parseInt(cellName.substring(4,6)), exit: parseInt(cellName.substring(cellName.indexOf("_")+1))};
-					if (options.connectStart.room === exitClick.room && options.connectStart.exit === exitClick.exit) {
-						cancelConnectMode(event);
-						trackerClick(event);
-					} else { //connect the exits
-						if (options.disableExits === false
-							|| map[curDungeon].rooms[parseInt(cellName.substring(4, 6))].icon === ""
-							|| map[curDungeon].rooms[parseInt(cellName.substring(4, 6))].exits[parseInt(cellName.substring(cellName.indexOf("_")+1))].visible === true) {
-							if (addConnector(options.connectStart, exitClick, true) === true) { //addConnector deletes if duplicate
-								map[curDungeon].rooms[exitClick.room].visible = true;
-								map[curDungeon].rooms[exitClick.room].exits[exitClick.exit].visible = true;
-								map[curDungeon].rooms[options.connectStart.room].visible = true;
-								map[curDungeon].rooms[options.connectStart.room].exits[options.connectStart.exit].visible = true;
-							}
-							cancelConnectMode(event);
-						}
-					}
-				}
-				//Default do nothing
-			} else if (event.button === 2) {
-				if (cellName.substring(0, 4) === "spec") {
-					var specIndex = parseInt(cellName.substring(4));
-					if (specData[specIndex].popup === true)
-						startPopupMode(specIndex);
-					else {
-						if (specData[specIndex].rooms[0].img === "delete")
-							cancelConnectMode(event);
-						startSpecialMode(specIndex);
-					}
-				} else if (cellName.substring(0, 7) === "scratch") {
-					cancelConnectMode(event);
-					if (parseInt(cellName.substring(7)) !== curDungeon)
-						trackerClick(event);
-				} else if (options.rightErase === true && tryToDeleteHoveredIcon(event) === true) { //delete hovered icon
-					; //do no more
-				} else { //default cancel
-					cancelConnectMode(event);
-				}
-			}
-			break;
-			
-		//*****
-		//Imager mode: Placing an icon
-		//*****
-		case "imager":
-			if (event.button === 0) {
-				if (cellName.substring(0, 4) === "icon") {
-					cancelImagerMode();
-					trackerClick(event);
-				} else if (cellName.substring(0, 4) === "spec") {
-					if (specData[parseInt(cellName.substring(4))].rooms[0].img === "delete")
-						cancelImagerMode();
-					//else save the image
-					startSpecialMode(parseInt(cellName.substring(4)));
-				} else if (cellName.substring(0, 4) === "exit"
-					&& (options.disableExits === false
-						|| map[curDungeon].rooms[parseInt(cellName.substring(4, 6))].icon === ""
-						|| map[curDungeon].rooms[parseInt(cellName.substring(4, 6))].exits[parseInt(cellName.substring(cellName.indexOf("_")+1))].visible === true)) { //assign icon to the exit
-					var roomNum = parseInt(cellName.substring(4, 6));
-					var exitNum = parseInt(cellName.substring(cellName.indexOf("_")+1));
-					map[curDungeon].rooms[roomNum].visible = true;
-					map[curDungeon].rooms[roomNum].exits[exitNum].visible = true;
-					map[curDungeon].rooms[roomNum].exits[exitNum].state = 0;
-					map[curDungeon].rooms[roomNum].exits[exitNum].icon = options.cursor;
-					refreshVisible(cellName);
-					cancelImagerMode();
-				} else if (cellName.substring(0, 4) === "room" || cellName.substring(0, 6) === "mapper" || cellName.substring(0, 7) === "scratch" || cellName.substring(0, 4) === "exit") {
-					//add free-standing icon
-					var newicon = {};
-					newicon.img = options.cursor;
-					newicon.x = event.pageX - DUNGEON_WINDOW_WIDTH;
-					newicon.y = event.pageY - MAP_OFFSET_Y;
-					newicon.drawn = false;
-					if (cellName.substring(0, 7) === "scratch")
-						options.images.push(newicon);
-					else
-						map[curDungeon].images.push(newicon);
-					drawImages();
-					cancelImagerMode();
-				}
-				//Default do nothing
-			} else if (event.button === 2) { //right click cancels the mode
-				if (cellName.substring(0, 4) === "icon") {
-					if (ICON_NAMES[parseInt(cellName.substring(4))] === options.cursor)
-						cancelImagerMode();
-					else {
-						cancelImagerMode();
-						trackerClick(event);
-					}
-				} else if (cellName.substring(0, 7) === "scratch") {
-					if (parseInt(cellName.substring(7)) !== curDungeon)
-						switchMap(parseInt(cellName.substring(7)), event);
-					else
-						cancelImagerMode();
-				} else if (cellName.substring(0, 4) === "spec") {
-					if (specData[parseInt(cellName.substring(4))].popup === true)
-						startPopupMode(parseInt(cellName.substring(4)));
-					else {
-						if (specData[parseInt(cellName.substring(4))].rooms[0].img === "delete")
-							cancelImagerMode(); //Don't carry the icon into delete function
-						startSpecialMode(parseInt(cellName.substring(4)));
-					}
-				} else if (options.rightErase === true && tryToDeleteHoveredIcon(event) === true) { //delete hovered icon
-					; //do no more
-				} else { //Default cancel
-					cancelImagerMode();
-				}
-			}
-			break;
-			
-		//*****
-		//Delete mode
-		//*****
-		case "special":
-			if (options.cursor === "delete") {
-				if (event.button === 0) {
-					if (cellName.substring(0, 4) === "icon") {
-						cancelSpecialMode();
-						trackerClick(event);
-					} else if (cellName.substring(0, 4) === "spec") {
-						cancelSpecialMode();
-						trackerClick(event);
-					} else { //clicked where there might be free-standing icons
-						var hovered = findHoveredIcon(event.pageX, event.pageY);
-						if (hovered !== -1)
-							map[curDungeon].images.splice(hovered, 1);
-						else {
-							hovered = findHoveredScratchIcon(event.pageX, event.pageY);
-							if (hovered !== -1) options.images.splice(hovered, 1);
-						}
-						if (hovered !== -1) { //clicked on an icon to delete
-							wipeImages();
-							drawImages();
-							refreshLines(event); //remove circling
-						} else {
-							var roomNum = parseInt(cellName.substring(4, 6));
-							var exitNum = parseInt(cellName.substring(cellName.indexOf("_")+1));
-							if (cellName.substring(0, 7) === "scratch") {
-								switchMap(parseInt(cellName.substring(7)), event);
-							} else if (cellName.substring(0, 4) === "room"
-								|| (cellName.substring(0, 4) === "exit" && map[curDungeon].rooms[roomNum].exits[exitNum].visible === false)
-								|| (cellName.substring(0, 4) === "exit" && options.disableExits === true)) {
-								if (options.lastDelete === parseInt(cellName.substring(4, 6)) && window.performance.now() - options.lastDeleteTime < DOUBLE_CLICK_TIME) {
-									//Double-click delete
-									var numIcons = map[curDungeon].images.length;
-									deleteRoom(parseInt(cellName.substring(4, 6)));
-									if (numIcons !== map[curDungeon].images.length) {
-										wipeImages();
-										drawImages();
-									}
-									refreshVisible(cellName);
-									options.lastDelete = -1;
-								} else { //first click
-									options.lastDelete = parseInt(cellName.substring(4, 6));
-									options.lastDeleteTime = window.performance.now();
-									refreshLines(event);
-									setTimeout(resetDelHighlight, DOUBLE_CLICK_TIME);
-								}
-							} else if (cellName.substring(0, 4) === "exit") { //visible exit
-								deleteExit(roomNum, exitNum);
-								refreshVisible(cellName);
-							}
-						}
-					}
-					//Default do nothing
-				} else if (event.button === 2) {
-					if (cellName.substring(0, 4) === "icon") {
-						cancelSpecialMode();
-						trackerClick(event);
-					} else if (cellName.substring(0, 4) === "spec") {
-						cancelSpecialMode();
-						if (specData[parseInt(cellName.substring(4))].rooms[0].img !== "delete")
-							trackerClick(event);
-					} else if (cellName.substring(0, 7) === "scratch") {
-						if (parseInt(cellName.substring(7)) !== curDungeon)
-							switchMap(parseInt(cellName.substring(7)), event);
-						else {
-							cancelSpecialMode();
-							refreshLines(event); //remove circling
-						}
-					} else if (options.rightErase === true && tryToDeleteHoveredIcon(event) === true) { //delete hovered icon
-						; //do no more
-					} else { //Default cancel
-						cancelSpecialMode();
-						refreshLines(event); //remove circling
-					}
-				}
-
-		//*****
-		//Special mode
-		//*****
-			} else {
-				if (event.button === 0) {
-					if (cellName.substring(0, 4) === "icon") {
-						cancelSpecialMode();
-						trackerClick(event);
-					} else if (cellName.substring(0, 7) === "scratch") {
-						switchMap(parseInt(cellName.substring(7)), event);
-					} else if (cellName.substring(0, 4) === "spec") {
-						var specIndex = parseInt(cellName.substring(4));
-						if (specIndex !== options.special) {
-							cancelSpecialMode();
-							trackerClick(event);
-						} else {
-							if (specData[specIndex].popup === true) {
-								//clicked on popup room again
-								options.state[specIndex]++;
-								options.state[specIndex] = options.state[specIndex] % specData[specIndex].rooms.length;
-								document.getElementById("spec"+specIndex).style.backgroundImage = "url(\"images/"+specData[specIndex].rooms[options.state[specIndex]].img+".png\")";
-								startSpecialMode(parseInt(cellName.substring(4)));
-							}
-							//Not a popup, do nothing
-						}
-					} else if (cellName.substring(0, 4) === "room" || cellName.substring(0, 4) === "exit") {
-						roomNum = parseInt(cellName.substring(4, 6));
-						specialHandler(roomNum);
-						cancelSpecialMode();
-						refreshVisible(cellName);
-						refreshLines(event); //might have deleted some connectors
-					}
-					//Default do nothing
-				} else if (event.button === 2)  {
-					if (cellName.substring(0, 4) === "icon") {
-						cancelSpecialMode();
-						trackerClick(event);
-					} else if (cellName.substring(0, 4) === "spec") {
-							cancelSpecialMode();
-							trackerClick(event);
-					} else if (cellName.substring(0, 7) === "scratch") {
-						if (parseInt(cellName.substring(7)) !== curDungeon)
-							switchMap(parseInt(cellName.substring(7)), event);
-						else
-							cancelSpecialMode();
-					} else if (options.rightErase === true && tryToDeleteHoveredIcon(event) === true) { //delete hovered icon
-						; //do no more
-					} else { //Default cancel
-						cancelSpecialMode();
-						refreshVisible(cellName); //remove pre-visualization
-					}
-				}
-			}
-			break;
-			
-		//*****
-		//Popup mode to select pre-defined tiles
-		//*****
-		case "popup":
-			if (event.button === 0) {
-				if (cellName.substring(0, 4) === "spec") {
-					cancelPopupMode();
-					trackerClick(event);
-				} else if (event.target.id.substring(0, 7) === "specpop") {
-					options.state[options.popup] = parseInt(cellName.substring(cellName.indexOf("_")+1));
-					document.getElementById("specpop"+options.popup).style.display = "none";
-					startSpecialMode(options.popup);
-				}
-				//Default do nothing
-			} else if (event.button === 2) {
-				cancelPopupMode();
-				if (cellName.substring(0, 4) === "spec") {
-					if (parseInt(cellName.substring(4)) === options.popup)
-						;
-					else
-						trackerClick(event);
-				} else if (cellName.substring(0, 7) === "scratch") {
-					if (parseInt(cellName.substring(7)) !== curDungeon)
-						trackerClick(event);
-				}
-			}
-			break;
-			
-		default: break;
-	}
-}
-
-//Mouse move on the canvas. For dynamic drawings
-function canvasMove(event) {
-	if (options.mode === "connect" || options.connectPlus === true) {
-		refreshLines(event); //Dynamic connector line drawing
+		var start = document.getElementById("exit"+options.connectStart.room+"_"+options.connectStart.exit).style;
+		var coord = calcRoomCoord(options.connectStart.room);
+		fromx = DUNGEON_WINDOW_WIDTH + DUNGEON_SCRATCH_WIDTH + coord.x + parseInt(start.left);
+		fromy = MAP_OFFSET_Y + coord.y + parseInt(start.top);
 	} else if (options.mode === "mover") {
-		if (event.buttons !== 1) //released outside the window or something
-			options.mode = "normal";
-		refreshLines(event); //Dynamic mover line drawing
-	} else if (options.mode === "special" && options.cursor === "delete") {
-		refreshLines(event); //Dynamic icon highlighting and red room highlighting in this mode
-	} else if (options.rightErase === true) { //Dynamic icon highlighting
-		refreshLines(event);
+		var coord = calcRoomCoord(options.room);
+		fromx = DUNGEON_WINDOW_WIDTH + DUNGEON_SCRATCH_WIDTH + coord.x + ROOM_SIZE/2;
+		fromy = MAP_OFFSET_Y + coord.y + ROOM_SIZE/2;
 	}
+	
+	var theCanvas = document.getElementById("myCanvas");
+	var ctx = theCanvas.getContext("2d");
+	ctx.clearRect(Math.min(fromx, options.lastCursor.x) - MOVE_ARROW_SIZE, Math.min(fromy, options.lastCursor.y) - MOVE_ARROW_SIZE, Math.abs(fromx - options.lastCursor.x) + MOVE_ARROW_SIZE*2, Math.abs(fromy - options.lastCursor.y) + MOVE_ARROW_SIZE*2);
 }
 
-//Could be released outside of window!
-function trackerRelease(event) {
-	var cellName = event.target.id.substring(2); //remove "i_" prefix
 
-	if (event.button === 0) {
-		if (options.mode === "mover") {
-			//mode is auto-cancelled via mousemove event if button is released outside window
-			var dest = parseInt(cellName.substring(4, 6));
-			var src = options.room;
-			if ((cellName.substring(0, 4) === "room" || cellName.substring(0, 4) === "exit")
-				&& map[curDungeon].rooms[dest].visible === false //only allow movement into empty space
-				&& dest !== src) { //moving to a new location
-				var destRoom = map[curDungeon].rooms[dest];
-				var srcRoom = map[curDungeon].rooms[src];
-				destRoom.visible = srcRoom.visible;
-				destRoom.icon = srcRoom.icon;
-				for (var i = 0; i < EXIT_NUM; i++) {
-					destRoom.exits[i].visible = srcRoom.exits[i].visible;
-					destRoom.exits[i].state = srcRoom.exits[i].state;
-					destRoom.exits[i].icon = srcRoom.exits[i].icon;
-				}
-				for (var i = 0; i < map[curDungeon].connects.length; i++) {
-					if (map[curDungeon].connects[i].start.room === src)
-						map[curDungeon].connects[i].start.room = dest;
-					if (map[curDungeon].connects[i].end.room === src)
-						map[curDungeon].connects[i].end.room = dest;
-				}
-				var icons = findIconsInRoom(src);
-				var srcCoord = calcRoomCoord(src);
-				var destCoord = calcRoomCoord(dest);
-				var diffX = destCoord.x - srcCoord.x;
-				var diffY = destCoord.y - srcCoord.y;
-				for (var i = 0; i < icons.length; i++) {
-					map[curDungeon].images[icons[i]].x += diffX;
-					map[curDungeon].images[icons[i]].y += diffY;
-				}
-				deleteRoom(options.room);
-				if (icons.length > 0) { //moved some icons, so need to refresh
-					wipeImages();
-					drawImages();
-				}
-				refreshVisible(cellName);
+//*****
+//EVENT HANDLERS
+//*****
+
+//mouseover/mouseout on the popup menus
+//Sets border highlight on the hovered cell
+function popupHighlight(event) {
+	var cellStyle = document.getElementById(event.target.id).style;
+	if (event.type === "mouseover")
+		cellStyle.outline = POPUP_HIGHLIGHT_BORDER_WIDTH + "px solid " + POPUP_HIGHLIGHT_BORDER_COLOR;
+	else
+		cellStyle.outline = "";
+}
+
+//mouseover/mouseout on any room or exit
+function roomVisible(event) {
+	var room = getRoomNumFromID(event.target.id);
+
+	if (event.type === "mouseover")
+		applyHoverStyling(event);
+	else { //mouseout, essentially want to undo hovering
+		if (options.mode === "special" && specData[options.special].multi === true) {
+			//restore for all preview tiles
+			for (var i = 0; i < specData[options.special].rooms.length; i++) {
+				var tileNum = room + i * NUM_MAP_COLUMNS;
+				if (tileNum < ROOM_NUM)
+					refreshRoomAndExitsGfx(tileNum);
 			}
-			options.mode = "normal";
-			refreshLines(event); //remove dynamic line
+		} else {
+			refreshRoomAndExitsGfx(room);
+			var exit = getExitNumFromID(event.target.id);
+			if (exit !== -1) {
+				var list = findConnections(room, exit);
+				for (var i = 0; i < list.length; i++)
+					refreshExitGfx(list[i].room, list[i].exit);
+			}
 		}
 	}
 }
@@ -855,19 +571,568 @@ function mouseWheel(event) {
 	updateDungeonCounterText(dungeon);
 }
 
+//Handler for tracker clicks
+//Z-Structure of event handlers in the main tracker is:
+//Exits (top), Rooms, Free (imgs) (bottom)
+function trackerClick(event) {
+	var cellName = event.target.id.substring(2); //remove the "i_" prefix
+	
+	if (document.getElementById("options").style.display === "") //process no clicks if options window is open
+		return;
+	
+	if (event.button === 1) { //middle click
+		//Hovering over an icon -- delete it
+		if (tryToDeleteHoveredIcon(event) === true) {
+			;
+		} else if (cellName.substring(0, 4) === "icon" && ICON_NAMES[cellName.substring(4)] !== "info") {
+			//Always activate imager mode
+			if (options.mode === "special")
+				cancelSpecialMode(event);
+			if (options.mode === "imager")
+				cancelImagerMode();
+			if (options.mode === "connect")
+				cancelConnectMode();
+			if (options.mode === "normal")
+				startImagerMode(parseInt(cellName.substring(4)));
+			//popup mode -- everything else disabled
+			//mover mode -- cannot left click in this mode
+		}
+	}
+	
+	if (event.button !== 0 && event.button !== 2) //Respond to only left and right clicks
+		return;
+
+	//Clicks on the left-side dungeons always switch the map
+	if (cellName.substring(0, 4) === "dung") {
+		//Left or right click
+		if (event.button === 0)
+			switchMap(parseInt(cellName.substring(4)), event);
+		else if (event.button === 2) {
+			var dungNum = parseInt(cellName.substring(4));
+			map[dungNum].finished = !map[dungNum].finished;
+			var dungStyle = document.getElementById(cellName).style;
+			if (map[dungNum].finished === true)
+				dungStyle.backgroundImage = "url('images/xmark.png'), " + dungStyle.backgroundImage;
+			else
+				dungStyle.backgroundImage = dungStyle.backgroundImage.substring("url('images/xmark.png'), ".length);
+		}
+		return;
+	}
+	
+	if (cellName.substring(0, 4) === "icon" && ICON_NAMES[cellName.substring(4)] === "info") {
+		//cancel all modes
+		if (options.mode === "popup")
+			cancelPopupMode();
+		else if (options.mode === "special")
+			cancelSpecialMode(event);
+		else if (options.mode === "connect")
+			cancelConnectMode();
+		else if (options.mode === "imager")
+			cancelImagerMode();
+		else if (options.mode === "super")
+			cancelSuperMode();
+		openOptions();
+		return;
+	}
+	
+	switch (options.mode) {
+		case "normal":
+			if (event.button === 0) {
+				if (cellName.substring(0, 4) === "icon") {
+					startImagerMode(parseInt(cellName.substring(4)));
+				} else if (cellName.substring(0, 4) === "spec") {
+					startSpecialMode(parseInt(cellName.substring(4)));
+				} else if (cellName.substring(0, 7) === "scratch") {
+					if (parseInt(cellName.substring(7)) !== curDungeon) //clicked on different dungeon, switch map
+						switchMap(parseInt(cellName.substring(7)), event);
+					else { //clicked on same dungeon, update counter
+						scratchCounterUpdate(event.button);
+						updateDungeonCounterText(curDungeon);
+					}
+				} else if (cellName.substring(0, 4) === "room") {
+					var roomNum = getRoomNumFromID(event.target.id);
+					var roomData = map[curDungeon].rooms[roomNum];
+					if (roomData.visible === true) { //room already exists
+						options.mode = "mover";
+						options.room = roomNum;
+						canvasMove(event);
+					} else { //Action: Create custom room
+						roomData.visible = true;
+						refreshRoomGfx(roomNum);
+						applyHoverStyling(event);
+					}
+				} else if (cellName.substring(0, 4) === "exit") {
+					var roomNum = getRoomNumFromID(event.target.id);
+					var exitNum = getExitNumFromID(event.target.id);
+					var roomData = map[curDungeon].rooms[roomNum];
+					var exitData = roomData.exits[exitNum];
+					if (roomData.visible === false) { //Action: Create custom room & exit
+						roomData.visible = true;
+						exitData.visible = true;
+						refreshRoomGfx(roomNum);
+						refreshExitGfx(roomNum, exitNum);
+						applyHoverStyling(event);
+					} else {
+						cycleExitState(roomNum, exitNum) //Action: Cycle exit
+						updateDungeonCounterText(curDungeon);
+						refreshExitGfx(roomNum, exitNum);
+						applyHoverStyling(event);
+					}
+				}
+				//Default do nothing
+			} else if (event.button === 2) {
+				if (cellName.substring(0, 4) === "icon") {
+					trackerClick(Object.defineProperty(event, 'button', {value: 0}));
+				} else if (cellName.substring(0, 4) === "spec") {
+					var specIndex = parseInt(cellName.substring(4));
+					if (specData[specIndex].popup === true)
+						startPopupMode(specIndex);
+					else
+						trackerClick(Object.defineProperty(event, 'button', {value: 0}));
+				} else if (cellName.substring(0, 4) === "exit") {
+					startConnectMode(getRoomNumFromID(event.target.id), getExitNumFromID(event.target.id));
+					applyHoverStyling(event);
+					refreshLines(event);
+				} else if (options.rightErase === true && tryToDeleteHoveredIcon(event) === true) { //Action: Delete hovered icon
+					updateDungeonCounterText(curDungeon);
+				} else if (cellName.substring(0, 7) === "scratch") { //same as left click
+					if (parseInt(cellName.substring(7)) !== curDungeon)
+						switchMap(parseInt(cellName.substring(7)), event);
+					else {
+						scratchCounterUpdate(event.button);
+						updateDungeonCounterText(curDungeon);
+					}
+				} else if (cellName.substring(0, 4) === "room" && options.superEnable === true) {
+					startSuperMode(getRoomNumFromID(event.target.id));
+				}
+				//Default do nothing
+			}
+			break;
+				
+		//*****
+		//Connect mode: pairing two exits together
+		//*****
+		case "connect":
+			if (event.button === 0) {
+				if (cellName.substring(0, 4) === "icon") { //drew a path to an icon
+					assignIconToExit(options.connectStart.room, options.connectStart.exit, ICON_NAMES[parseInt(cellName.substring(4))])
+					cancelConnectMode();
+					applyHoverStyling(event);
+				} else if (cellName.substring(0, 4) === "spec") {
+					startSpecialMode(parseInt(cellName.substring(4)));
+				} else if (cellName.substring(0, 7) === "scratch") {
+					if (parseInt(cellName.substring(7)) === curDungeon)
+						; //do nothing
+					else {
+						cancelConnectMode();
+						trackerClick(event);
+					}
+				//no action on room left click (avoid misclick of exit)
+				} else if (cellName.substring(0, 4) === "exit") {
+					var roomNum = getRoomNumFromID(event.target.id);
+					var exitNum = getExitNumFromID(event.target.id);
+					var roomData = map[curDungeon].rooms[roomNum];
+					var exitData = roomData.exits[exitNum];
+					var connectEnd = {room:roomNum, exit:exitNum};
+					if (isStartConnectExit(roomNum, exitNum)) {
+						cancelConnectMode();
+						trackerClick(event);
+					} else { //connect the exits
+						if (addConnector(options.connectStart, connectEnd, true) === true) { //addConnector deletes if duplicate
+							roomData.visible = true;
+							exitData.visible = true;
+							map[curDungeon].rooms[options.connectStart.room].visible = true;
+							map[curDungeon].rooms[options.connectStart.room].exits[options.connectStart.exit].visible = true;
+						} else { //erased connector
+							; //no other actions
+						}
+						cancelConnectMode();
+						refreshRoomGfx(roomNum);
+						refreshExitGfx(roomNum, exitNum);
+						refreshRoomGfx(options.connectStart.room);
+						refreshExitGfx(options.connectStart.room, options.connectStart.exit);
+						applyHoverStyling(event);
+					}
+				}
+				//Default do nothing
+			} else if (event.button === 2) {
+				if (cellName.substring(0, 4) === "spec") {
+					var specIndex = parseInt(cellName.substring(4));
+					if (specData[specIndex].popup === true)
+						startPopupMode(specIndex);
+					else
+						trackerClick(Object.defineProperty(event, 'button', {value: 0}));
+				} else if (options.rightErase === true && tryToDeleteHoveredIcon(event) === true) { //delete hovered icon
+					updateDungeonCounterText(curDungeon);
+				} else if (cellName.substring(0, 7) === "scratch") {
+					if (parseInt(cellName.substring(7)) !== curDungeon)
+						trackerClick(Object.defineProperty(event, 'button', {value: 0}));
+					else
+						cancelConnectMode();
+				} else if (cellName.substring(0, 4) === "room" && options.superEnable === true) {
+					startSuperMode(getRoomNumFromID(event.target.id));
+				} else { //default cancel
+					cancelConnectMode();
+				}
+			}
+			break;
+			
+		//*****
+		//Imager mode: Placing an icon
+		//*****
+		case "imager":
+			if (event.button === 0) {
+				if (cellName.substring(0, 4) === "icon") {
+					cancelImagerMode();
+					trackerClick(event);
+				} else if (cellName.substring(0, 4) === "spec") {
+					startSpecialMode(parseInt(cellName.substring(4)));
+				} else if (cellName.substring(0, 4) === "exit") { //assign icon to the exit
+					var roomNum = getRoomNumFromID(event.target.id);
+					var exitNum = getExitNumFromID(event.target.id);
+					assignIconToExit(roomNum, exitNum, options.cursor);
+					cancelImagerMode();
+					applyHoverStyling(event);
+				} else if (cellName.substring(0, 4) === "room" || cellName.substring(0, 6) === "mapper" || cellName.substring(0, 7) === "scratch" || cellName.substring(0, 4) === "exit") {
+					if (cellName.substring(0, 7) === "scratch")
+						addFreeStandingIconElement(event.pageX, event.pageY, options.cursor, cellName);
+					else
+						addFreeStandingIconElement(event.pageX, event.pageY);
+					cancelImagerMode();
+					updateDungeonCounterText(curDungeon);
+				}
+				//Default do nothing
+			} else if (event.button === 2) { //right click cancels the mode
+				if (cellName.substring(0, 4) === "icon") {
+					if (ICON_NAMES[parseInt(cellName.substring(4))] === options.cursor)
+						cancelImagerMode();
+					else
+						trackerClick(Object.defineProperty(event, 'button', {value: 0}));
+				} else if (cellName.substring(0, 4) === "spec") {
+					if (specData[parseInt(cellName.substring(4))].popup === true)
+						startPopupMode(parseInt(cellName.substring(4)));
+					else
+						trackerClick(Object.defineProperty(event, 'button', {value: 0}));
+				} else if (options.rightErase === true && tryToDeleteHoveredIcon(event) === true) { //delete hovered icon
+					updateDungeonCounterText(curDungeon);
+				} else if (cellName.substring(0, 7) === "scratch") {
+					if (parseInt(cellName.substring(7)) !== curDungeon)
+						switchMap(parseInt(cellName.substring(7)), event);
+					else
+						cancelImagerMode();
+				} else if (cellName.substring(0, 4) === "room" && options.superEnable === true) {
+					startSuperMode(getRoomNumFromID(event.target.id));
+				} else { //Default cancel
+					cancelImagerMode();
+				}
+			}
+			break;
+			
+		//*****
+		//Delete mode
+		//*****
+		case "special":
+			if (options.cursor === "delete") {
+				if (event.button === 0) {
+					if (cellName.substring(0, 4) === "icon") {
+						cancelSpecialMode(event);
+						trackerClick(event);
+					} else if (cellName.substring(0, 4) === "spec") {
+						cancelSpecialMode(event);
+						trackerClick(event);
+					} else if (tryToDeleteHoveredIcon(event) === true) { //clicked where there might be free-standing icons
+						updateDungeonCounterText(curDungeon);
+					} else {
+						var roomNum = getRoomNumFromID(event.target.id);
+						var exitNum = getExitNumFromID(event.target.id);
+						if (cellName.substring(0, 7) === "scratch") {
+							switchMap(parseInt(cellName.substring(7)), event);
+						} else if (cellName.substring(0, 4) === "room"
+							|| (cellName.substring(0, 4) === "exit"
+								&& (map[curDungeon].rooms[roomNum].exits[exitNum].visible === false || exitModificationAllowed(roomNum) === false))) {
+							if (options.lastDelete === roomNum && window.performance.now() - options.lastDeleteTime < DOUBLE_CLICK_TIME) {
+								//Double-click delete
+								deleteRoom(roomNum);
+								revertDelHighlight(options.lastDelete, true); //immediately revert
+								options.lastDelete = -1;
+								refreshRoomAndExitsGfx(roomNum);
+								updateDungeonCounterText(curDungeon);
+							} else { //first click
+								if (options.lastDelete !== -1) //another first click in process
+									revertDelHighlight(options.lastDelete, true); //immediately revert the previous one
+								options.lastDelete = roomNum;
+								options.lastDeleteTime = window.performance.now();
+								refreshRoomGfx(roomNum);
+								setTimeout(revertDelHighlight, DOUBLE_CLICK_TIME, roomNum);
+							}
+							//stay in delete mode, no hovering applies
+							//no remaining icons that might now have circling
+						} else if (cellName.substring(0, 4) === "exit" && exitModificationAllowed(roomNum)) { //visible exit
+							deleteExit(roomNum, exitNum);
+							refreshExitGfx(roomNum, exitNum);
+							refreshLines(event, true); //some connections might have gone away
+							updateDungeonCounterText(curDungeon);
+						}
+					}
+					//Default do nothing
+				} else if (event.button === 2) {
+					if (cellName.substring(0, 4) === "icon") {
+						trackerClick(Object.defineProperty(event, 'button', {value: 0}));
+					} else if (cellName.substring(0, 4) === "spec") {
+						cancelSpecialMode(event);
+						if (specData[parseInt(cellName.substring(4))].rooms[0].img !== "delete")
+							trackerClick(event);
+					} else if (cellName.substring(0, 7) === "scratch") {
+						if (parseInt(cellName.substring(7)) !== curDungeon)
+							switchMap(parseInt(cellName.substring(7)), event);
+						else
+							cancelSpecialMode(event);
+					} else if (options.rightErase === true && tryToDeleteHoveredIcon(event) === true) { //delete hovered icon
+						updateDungeonCounterText(curDungeon);
+					} else if (cellName.substring(0, 4) === "room" && options.superEnable === true) {
+						cancelSpecialMode(event);
+						startSuperMode(getRoomNumFromID(event.target.id));
+					} else { //Default cancel
+						cancelSpecialMode(event);
+						applyHoverStyling(event);
+					}
+				}
+
+		//*****
+		//Special mode
+		//*****
+			} else {
+				if (event.button === 0) {
+					if (cellName.substring(0, 4) === "icon") {
+						cancelSpecialMode(event);
+						trackerClick(event);
+					} else if (cellName.substring(0, 7) === "scratch") {
+						if (parseInt(cellName.substring(7)) !== curDungeon)
+							switchMap(parseInt(cellName.substring(7)), event);
+						else
+							; //do nothing
+					} else if (cellName.substring(0, 4) === "spec") {
+						var specIndex = parseInt(cellName.substring(4));
+						if (specIndex !== options.special) {
+							cancelSpecialMode(event);
+							trackerClick(event);
+						} else {
+							if (specData[specIndex].popup === true) {
+								//clicked on popup room again
+								options.state[specIndex]++;
+								options.state[specIndex] = options.state[specIndex] % specData[specIndex].rooms.length;
+								document.getElementById("spec"+specIndex).style.backgroundImage = "url(\"images/"+specData[specIndex].rooms[options.state[specIndex]].img+".png\")";
+								startSpecialMode(parseInt(cellName.substring(4)));
+							}
+							//Not a popup, do nothing
+						}
+					} else if (cellName.substring(0, 4) === "room" || cellName.substring(0, 4) === "exit") {
+						roomNum = getRoomNumFromID(event.target.id);
+						specialHandler(roomNum);
+						cancelSpecialMode(event); //also refreshes room+exits
+						applyHoverStyling(event);
+					}
+					//Default do nothing
+				} else if (event.button === 2)  {
+					if (cellName.substring(0, 4) === "icon") {
+						trackerClick(Object.defineProperty(event, 'button', {value: 0}));
+					} else if (cellName.substring(0, 4) === "spec") {
+						if (specData[options.special].multi === true && options.special === parseInt(cellName.substring(4)))
+							cancelSpecialMode(event); //do no more
+						else {
+							cancelSpecialMode(event);
+							trackerClick(event);
+						}
+					} else if (options.rightErase === true && tryToDeleteHoveredIcon(event) === true) { //delete hovered icon
+						updateDungeonCounterText(curDungeon);
+					} else if (cellName.substring(0, 7) === "scratch") {
+						if (parseInt(cellName.substring(7)) !== curDungeon)
+							trackerClick(Object.defineProperty(event, 'button', {value: 0}));
+						else
+							cancelSpecialMode(event);
+					} else if (cellName.substring(0, 4) === "room" && options.superEnable === true) {
+						cancelSpecialMode(event);
+						startSuperMode(getRoomNumFromID(event.target.id));
+					} else { //Default cancel
+						cancelSpecialMode(event);
+					}
+				}
+			}
+			break;
+			
+		//*****
+		//Popup mode to select pre-defined tiles
+		//*****
+		case "popup":
+			if (event.button === 0) {
+				if (cellName.substring(0, 4) === "spec") {
+					cancelPopupMode();
+					trackerClick(event);
+				} else if (cellName.substring(0, 7) === "scratch") {
+					if (parseInt(cellName.substring(7)) !== curDungeon) {
+						cancelPopupMode();
+						trackerClick(event);
+					}
+				} else if (event.target.id.substring(0, 7) === "specpop") {
+					cancelPopupMode();
+					options.state[options.popup] = parseInt(cellName.substring(cellName.indexOf("_")+1));
+					startSpecialMode(options.popup);
+				}
+				//Default do nothing
+			} else if (event.button === 2) {
+				if (cellName.substring(0, 4) === "spec") {
+					cancelPopupMode();
+					if (parseInt(cellName.substring(4)) !== options.popup)
+						trackerClick(event);
+				} else if (cellName.substring(0, 7) === "scratch") {
+					if (parseInt(cellName.substring(7)) !== curDungeon)
+						trackerClick(Object.defineProperty(event, 'button', {value: 0}));
+					else
+						cancelPopupMode();
+				} else {
+					cancelPopupMode();
+				}
+			}
+			break;
+			
+		//*****
+		//Super mode to select pre-defined tiles
+		//*****
+		case "super":
+			if (event.button === 0) {
+				if (cellName.substring(0, 4) === "spec") {
+					cancelSuperMode();
+					trackerClick(event);
+				} else if (event.target.id.substring(0, 10) === "i_superpop") {
+					cancelSuperMode();
+					var cellNum = parseInt(event.target.id.substring(event.target.id.substring(0, 2) === "i_"?10:8));
+					options.state[superData[cellNum].dungeon] = superData[cellNum].room;
+					startSpecialMode(superData[cellNum].dungeon);
+					specialHandler(options.superRoom);
+					cancelSpecialMode(event); //also refreshes room+exits
+					applyHoverStyling(event);
+				}
+				//Default do nothing
+			} else if (event.button === 2) {
+				if (cellName.substring(0, 4) === "spec") {
+					cancelSuperMode();
+					trackerClick(event);
+				} else {
+					cancelSuperMode();
+				}
+			}
+			break;
+			
+		default: break;
+	}
+}
+
+//Mouse move on the canvas. For dynamic drawings
+function canvasMove(event) {
+	//check all images for icon highlighting
+	for (var i = 0; i < map[curDungeon].images.length; i++) {
+		var imgStyle = document.getElementById("i_"+map[curDungeon].images[i]).style;
+		if (imgStyle.borderColor !== "rgba(0, 0, 0, 0)")
+			imgStyle.borderColor = "rgba(0,0,0,0)";
+	}
+	for (var i = 0; i < options.images.length; i++) {
+		var imgStyle = document.getElementById("i_"+options.images[i]).style;
+		if (imgStyle.borderColor !== "rgba(0, 0, 0, 0)")
+			imgStyle.borderColor = "rgba(0,0,0,0)";
+	}
+	highlightHoverIcon(event);
+	
+	if (options.mode === "connect" || options.connectPlus === true) {
+		refreshLines(event); //Dynamic connector line drawing
+	} else if (options.mode === "mover") {
+		if (event.buttons !== 1) { //released outside the window or something
+			clearDynamicLine();
+			options.mode = "normal";
+		}
+		refreshLines(event); //Dynamic mover line drawing
+	}
+}
+
+//Could be released outside of window!
+function trackerRelease(event) {
+	var cellName = event.target.id.substring(2); //remove "i_" prefix
+
+	if (event.button === 0) {
+		if (options.mode === "mover") {
+			//mode is auto-cancelled via mousemove event if button is released outside window
+			var dest = getRoomNumFromID(event.target.id);
+			var src = options.room;
+			if ((cellName.substring(0, 4) === "room" || cellName.substring(0, 4) === "exit")
+				&& map[curDungeon].rooms[dest].visible === false //only allow movement into empty space
+				&& dest !== src) { //moving to a new location
+				var destRoom = map[curDungeon].rooms[dest];
+				var srcRoom = map[curDungeon].rooms[src];
+				deleteRoom(dest);
+				destRoom.visible = srcRoom.visible;
+				destRoom.icon = srcRoom.icon;
+				for (var i = 0; i < EXIT_NUM; i++) {
+					destRoom.exits[i].visible = srcRoom.exits[i].visible;
+					destRoom.exits[i].icon = srcRoom.exits[i].icon;
+				}
+				for (var i = 0; i < map[curDungeon].connects.length; i++) {
+					if (map[curDungeon].connects[i].start.room === src)
+						map[curDungeon].connects[i].start.room = dest;
+					if (map[curDungeon].connects[i].end.room === src)
+						map[curDungeon].connects[i].end.room = dest;
+				}
+				
+				var srcRoomEl = document.getElementById("room"+src);
+				var destRoomEl = document.getElementById("room"+dest);
+				var isrcRoomEl = document.getElementById("i_room"+src);
+				var idestRoomEl = document.getElementById("i_room"+dest);
+				for (var i = 0; i < map[curDungeon].images.length; i++) {
+					if (getRoomNumFromID(map[curDungeon].images[i]) === src) {
+						var oldID = map[curDungeon].images[i];
+						var newID = oldID.replace("_"+src+"_", "_"+dest+"_");
+						map[curDungeon].images[i] = newID;
+						var oldimg = document.getElementById(oldID);
+						oldimg.id = newID;
+						var oldiimg = document.getElementById("i_"+oldID);
+						oldiimg.id = "i_"+newID;
+						var diffX = calcRoomCoord(dest).x - calcRoomCoord(src).x;
+						var diffY = calcRoomCoord(dest).y - calcRoomCoord(src).y;
+						oldimg.style.top = parseInt(oldimg.style.top) + diffY;
+						oldimg.style.left = parseInt(oldimg.style.left) + diffX;
+						oldiimg.style.top = parseInt(oldiimg.style.top) + diffY;
+						oldiimg.style.left = parseInt(oldiimg.style.left) + diffX;
+					}
+				}
+
+				deleteRoom(src);
+
+				refreshRoomAndExitsGfx(src);
+				refreshRoomAndExitsGfx(dest);
+			}
+			clearDynamicLine();
+			options.mode = "normal";
+			applyHoverStyling(event);
+			refreshLines(event, true); //remove/redraw connectors
+		}
+	}
+}
+
+
+//*****
+//MODE ENTRY FUNCTIONS
+//start and end for each type of mode
+//*****
+
 function startConnectMode(room, exit) {
 	options.mode = "connect";
 	options.connectStart.room = room;
 	options.connectStart.exit = exit;
+	refreshExitGfx(room, exit); //update the start connection gfx
 }
-function cancelConnectMode(event) {
+function cancelConnectMode() {
+	clearDynamicLine();
 	options.mode = "normal";
-	refreshLines(event); //remove the dynamic line
-	var cellName = event.target.id.substring(2);
-	if (cellName.substring(0, 4) === "room" || cellName.substring(0, 4) === "exit")
-		refreshVisible(cellName); //make sure hover is displayed correctly on exit
-	else
-		refreshVisible();
+	refreshRoomGfx(options.connectStart.room); //remove start room if it was ghostly start
+	refreshExitGfx(options.connectStart.room, options.connectStart.exit);
 }
 
 function startImagerMode(img) {
@@ -882,19 +1147,29 @@ function cancelImagerMode() {
 }
 
 function startSpecialMode(index) {
-	if (options.mode === "connect")
-		options.connectPlus = true;
-	else if (options.mode === "imager") {
-		options.imagerPlus = true;
-		options.imagerSave = options.cursor;
+	if (specData[index].rooms[0].img !== "delete") {
+		if (options.mode === "connect")
+			options.connectPlus = true;
+		else if (options.mode === "imager") {
+			options.imagerPlus = true;
+			options.imagerSave = options.cursor;
+		}
+	} else { //delete mode, cancel the modes instead
+		if (options.mode === "connect")
+			cancelConnectMode();
+		if (options.mode === "imager")
+			; //cancelImagerMode();
 	}
 	options.mode = "special";
 	options.special = index;
 	options.cursor = specData[index].rooms[options.state[index]].img;
 	setCursor();
 }
-function cancelSpecialMode() {
-	options.lastDelete = -1;
+function cancelSpecialMode(event = null) {
+	if (options.cursor === "delete" && options.lastDelete !== -1) {
+		revertDelHighlight(options.lastDelete, true);
+		options.lastDelete = -1;
+	}
 	if (options.connectPlus === true) {
 		options.mode = "connect";
 		options.connectPlus = false;
@@ -904,18 +1179,29 @@ function cancelSpecialMode() {
 	} else
 		options.mode = "normal";
 	
-	for (var i = 0; i < 13; i++) {
-		if (specData[i].popup === true) {
-			//Reset all rooms lists to 0
-			options.state[i] = 0;
-			document.getElementById("spec"+i).style.backgroundImage = "url(\"images/"+specData[i].rooms[0].img+".png\")";
-		}
+	if (specData[options.special].popup === true && options.state[options.special] !== 0) {
+		options.state[options.special] = 0;
+		document.getElementById("spec"+options.special).style.backgroundImage = "url(\"images/"+specData[options.special].rooms[0].img+".png\")";
 	}
 	if (options.mode === "imager")
 		options.cursor = options.imagerSave;
 	else
 		options.cursor = "";
 	setCursor();
+	
+	if (event !== null) {
+		var roomNum = getRoomNumFromID(event.target.id);
+		if (event.target.id.indexOf("superpop") !== -1)
+			roomNum = options.superRoom;
+		if (roomNum !== -1) {
+			var tiles = (specData[options.special].multi === true ? specData[options.special].rooms.length : 1)
+			for (var i = 0; i < tiles; i++) {
+				var tileNum = roomNum + i * NUM_MAP_COLUMNS
+				if (tileNum < ROOM_NUM)
+					refreshRoomAndExitsGfx(tileNum);
+			}
+		}
+	}
 }
 
 function startPopupMode(index) {
@@ -944,34 +1230,44 @@ function cancelPopupMode() {
 	}
 }
 
-function scratchCounterUpdate(click) {
-	if (click === 0) //left click counter down
-		map[curDungeon].counter2 = Math.max(0, map[curDungeon].counter2 - 1);
-	if (click === 2) //right click counter up
-		map[curDungeon].counter2 += 1;
-	updateDungeonCounterText(curDungeon);
+function startSuperMode(room) {
+	options.superRoom = room;
+	if (options.mode === "connect")
+		options.connectPlus = true;
+	else if (options.mode === "imager") {
+		options.imagerPlus = true;
+		options.imagerSave = options.cursor;
+	}
+	options.mode = "super";
+	updateSuperMarks();
+	document.getElementById("superpop").style.display = "";
 }
-
-//clears all room deletion highlights
-function resetDelHighlight() {
-	for (var i = 0; i < ROOM_NUM; i++) {
-		document.getElementById("i_room"+i).style.backgroundColor = "";
+function cancelSuperMode() {
+	options.mode = "normal";
+	document.getElementById("superpop").style.display = "none";
+	if (options.connectPlus === true) {
+		options.mode = "connect";
+		options.connectPlus = false;
+	} else if (options.imagerPlus === true) {
+		options.mode = "imager";
+		options.imagerPlus = false;
 	}
 }
-
 
 //Clicked on a different dungeon. Reload new dungeon.
 function switchMap(dungeon, event = null) {
 	if (dungeon === curDungeon) { //cancel one mode if applicable
 		if (event.button === 2) {
 			if (options.mode === "connect")
-				cancelConnectMode(event);
+				cancelConnectMode();
 			else if (options.mode === "imager")
 				cancelImagerMode();
 			else if (options.mode === "special")
-				cancelSpecialMode();
+				cancelSpecialMode(event);
 			else if (options.mode === "popup")
 				cancelPopupMode();
+			else if (options.mode === "super")
+				cancelSuperMode();
 		}
 		return; //otherwise do nothing
 	}
@@ -990,43 +1286,48 @@ function switchMap(dungeon, event = null) {
 	//Cancel popup window when changing dungeons?
 	if (options.mode === "popup")
 		cancelPopupMode();
+	if (options.mode === "super")
+		cancelSuperMode();
+
+	for (var i = 0; i < map[curDungeon].images.length; i++) {
+		document.getElementById(map[curDungeon].images[i]).style.display = "none";
+		document.getElementById("i_"+map[curDungeon].images[i]).style.display = "none";
+	}
 	
-	wipeImages();
 	document.getElementById("dungrow"+curDungeon).style.backgroundColor = "rgba(0,0,0,0)"; //transparent to show border
 	curDungeon = dungeon;
 	document.getElementById("dungrow"+dungeon).style.backgroundColor = DUNGEON_HIGHLIGHT;
-	refreshVisible();
-	refreshLines(event);
-	drawImages();
+	
+	for (var i = 0; i < map[curDungeon].images.length; i++) {
+		document.getElementById(map[curDungeon].images[i]).style.display = "";
+		document.getElementById("i_"+map[curDungeon].images[i]).style.display = "";
+	}
+	updateDungeonCounterText(curDungeon);
+	
+	refreshAllRooms(); //switching map
+	refreshLines(event, true);
 }
 
+
+
+
+
 function button_click(but) {
+	assignOptions();
 	switch(but.id) {
 		case "reset_button":
-			options.potsanity = document.getElementById("opt_potsanity_on").checked;
-			options.lobbyshuffle = document.getElementById("opt_lobby_on").checked;
-			options.showcounter = document.getElementById("opt_counter_on").checked;
-			options.disableExits = document.getElementById("opt_exit_disable").checked;
-			options.rightErase = document.getElementById("opt_eraseR_enable").checked;
 			InitializeDungeonMaps();
-			refreshVisible();
-			refreshLines(null);
-			wipeImages();
-			drawImages();
-			document.getElementById("options").style.display = "none";
+			refreshAllRooms(); //total reset
+			refreshLines(null, true);
 			break;
 		case "close_button":
-			options.potsanity = document.getElementById("opt_potsanity_on").checked;
-			options.lobbyshuffle = document.getElementById("opt_lobby_on").checked;
-			options.showcounter = document.getElementById("opt_counter_on").checked;
-			options.disableExits = document.getElementById("opt_exit_disable").checked;
-			options.rightErase = document.getElementById("opt_eraseR_enable").checked;
 			for (var i = 0; i < 13; i++) {
 				updateDungeonCounterText(i);
 			}
-			document.getElementById("options").style.display = "none";
+			refreshAllRooms();
 			break;
 	}
+	document.getElementById("options").style.display = "none";
 }
 
 function openOptions() {
