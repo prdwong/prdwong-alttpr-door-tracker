@@ -509,7 +509,7 @@ function InitializeDungeonMaps() {
 	resetAll();
 	fillTile(0, 3, 8, 7); //escape drop
 	fillTile(8, 8, 8, 18); //TT jail
-	fillTile(9, 8, 22, 18); //IP boss
+	fillTile(9, 8, 25, 18); //IP boss
 	if (options.lobbyshuffle === false) {
 		fillTile(0, 3, 0, 17);//HCM
 		fillTile(0, 3, 1, 16);//HCW
@@ -520,13 +520,13 @@ function InitializeDungeonMaps() {
 		fillTile(2, 5, 1, 18); //DPE
 		fillTile(2, 5, 4, 16); //DPW
 		fillTile(2, 5, 5, 6);//DPB
-		fillTile(4, 6, 8, 17);//AT
+		fillTile(4, 6, 9, 17);//AT
 		fillTile(5, 6, 0, 17);//PoD
 		fillTile(6, 7, 7, 17);//SP
 		fillTile(7, 7, 12, 7);//SWE
 		fillTile(7, 7, 13, 13);//SWB
 		fillTile(8, 8, 0, 17);//TT
-		fillTile(9, 8, 14, 17);//IP
+		fillTile(9, 8, 13, 17);//IP
 		fillTile(10, 9, 6, 17);//MM
 		fillTile(11, 10, 5, 18);//TRM
 		fillTile(11, 10, 3, 17);//TRE

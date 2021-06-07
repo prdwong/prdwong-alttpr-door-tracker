@@ -13,6 +13,7 @@ User manual: https://bit.ly/37YYLLG
 How to install:  
 Unzip and open tracker_map.html in a browser
 
+v1.11: Add support for in-room stairways
 v1.10: Unexplored exit highlighting  
   Bigger exit boxes  
   Super menu for all branching supertiles  

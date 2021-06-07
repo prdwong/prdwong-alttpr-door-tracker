@@ -765,9 +765,10 @@ function trackerClick(event) {
 				} else if (options.rightErase === true && tryToDeleteHoveredIcon(event) === true) { //delete hovered icon
 					updateDungeonCounterText(curDungeon);
 				} else if (cellName.substring(0, 7) === "scratch") {
-					if (parseInt(cellName.substring(7)) !== curDungeon)
-						trackerClick(Object.defineProperty(event, 'button', {value: 0}));
-					else
+					if (parseInt(cellName.substring(7)) !== curDungeon) {
+						cancelConnectMode();
+						trackerClick(event);
+					} else
 						cancelConnectMode();
 				} else if (cellName.substring(0, 4) === "room" && options.superEnable === true) {
 					startSuperMode(getRoomNumFromID(event.target.id));
@@ -806,8 +807,10 @@ function trackerClick(event) {
 				if (cellName.substring(0, 4) === "icon") {
 					if (ICON_NAMES[parseInt(cellName.substring(4))] === options.cursor)
 						cancelImagerMode();
-					else
-						trackerClick(Object.defineProperty(event, 'button', {value: 0}));
+					else {
+						cancelImagerMode();
+						trackerClick(event);
+					}
 				} else if (cellName.substring(0, 4) === "spec") {
 					if (specData[parseInt(cellName.substring(4))].popup === true)
 						startPopupMode(parseInt(cellName.substring(4)));
@@ -877,7 +880,8 @@ function trackerClick(event) {
 					//Default do nothing
 				} else if (event.button === 2) {
 					if (cellName.substring(0, 4) === "icon") {
-						trackerClick(Object.defineProperty(event, 'button', {value: 0}));
+						cancelSpecialMode(event);
+						trackerClick(event);
 					} else if (cellName.substring(0, 4) === "spec") {
 						cancelSpecialMode(event);
 						if (specData[parseInt(cellName.substring(4))].rooms[0].img !== "delete")
@@ -935,7 +939,8 @@ function trackerClick(event) {
 					//Default do nothing
 				} else if (event.button === 2)  {
 					if (cellName.substring(0, 4) === "icon") {
-						trackerClick(Object.defineProperty(event, 'button', {value: 0}));
+						cancelSpecialMode(event);
+						trackerClick(event);
 					} else if (cellName.substring(0, 4) === "spec") {
 						if (specData[options.special].multi === true && options.special === parseInt(cellName.substring(4)))
 							cancelSpecialMode(event); //do no more
@@ -947,7 +952,7 @@ function trackerClick(event) {
 						updateDungeonCounterText(curDungeon);
 					} else if (cellName.substring(0, 7) === "scratch") {
 						if (parseInt(cellName.substring(7)) !== curDungeon)
-							trackerClick(Object.defineProperty(event, 'button', {value: 0}));
+							switchMap(parseInt(cellName.substring(7)), event);
 						else
 							cancelSpecialMode(event);
 					} else if (cellName.substring(0, 4) === "room" && options.superEnable === true) {
@@ -985,9 +990,10 @@ function trackerClick(event) {
 					if (parseInt(cellName.substring(4)) !== options.popup)
 						trackerClick(event);
 				} else if (cellName.substring(0, 7) === "scratch") {
-					if (parseInt(cellName.substring(7)) !== curDungeon)
-						trackerClick(Object.defineProperty(event, 'button', {value: 0}));
-					else
+					if (parseInt(cellName.substring(7)) !== curDungeon) {
+						cancelPopupMode();
+						trackerClick(event);
+					} else
 						cancelPopupMode();
 				} else {
 					cancelPopupMode();
